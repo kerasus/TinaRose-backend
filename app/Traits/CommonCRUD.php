@@ -51,7 +51,9 @@ trait CommonCRUD
         $this->loadScopes($request, $modelQuery, $configArray['scopes']);
         $this->filterByDate($request, $modelQuery, $configArray['filterDate']);
         $this->filterByKeys($request, $modelQuery, $configArray['filterKeys']);
+        $this->filterOrByKeys($request, $modelQuery, $configArray['filterOrKeys']);
         $this->filterByKeysExact($request, $modelQuery, $configArray['filterKeysExact']);
+        $this->filterOrByKeysExact($request, $modelQuery, $configArray['filterOrKeysExact']);
         $this->filterByKeysIn($request, $modelQuery, $configArray['filterKeysIn']); // {key}_in in request
         $this->filterByRelationKeys($request, $modelQuery, $configArray['filterRelationKeys']);
         $this->filterByRelationIds($request, $modelQuery, $configArray['filterRelationIds']);
@@ -65,8 +67,10 @@ trait CommonCRUD
             'eagerLoads' => $this->getDefault($config, 'eagerLoads', []),
             'filterDate' => $this->getDefault($config, 'filterDate', []),
             'filterKeys' => $this->getDefault($config, 'filterKeys', []),
+            'filterOrKeys' => $this->getDefault($config, 'filterOrKeys', []),
             'filterKeysIn' => $this->getDefault($config, 'filterKeysIn', []),
             'filterKeysExact' => $this->getDefault($config, 'filterKeysExact', []),
+            'filterOrKeysExact' => $this->getDefault($config, 'filterOrKeysExact', []),
             'setAppends' => $this->getDefault($config, 'setAppends', []),
             'returnModelQuery' => $this->getDefault($config, 'returnModelQuery', []),
             'filterRelationIds' => $this->getDefault($config, 'filterRelationIds', []),
@@ -88,7 +92,7 @@ trait CommonCRUD
             $attachedCollection = $this->getAttachedCollection($updatedModelQuery, $setAppends, $perPage);
             return $this->jsonResponseOk(
                 $updatedModelQuery->paginate($perPage)
-                ->setCollection($attachedCollection)
+                    ->setCollection($attachedCollection)
             );
         };
         return [
@@ -106,6 +110,8 @@ trait CommonCRUD
                 // Apply the scope only if the value is true or 1
                 if ($scopeValue === true || $scopeValue === 'true' || $scopeValue == 1) {
                     $modelQuery->$item();
+                } else if ($scopeValue !== false && $scopeValue !== 'false' && $scopeValue !== 0) {
+                    $modelQuery->$item($scopeValue);
                 }
             }
         }
@@ -117,9 +123,21 @@ trait CommonCRUD
         }
     }
 
+    private function filterOrByKeys(Request $request, & $modelQuery, $filterOrKeys) {
+        foreach ($filterOrKeys as $item) {
+            $this->filterOrByKey($request, $item, $modelQuery);
+        }
+    }
+
     private function filterByKeysExact(Request $request, & $modelQuery, $filterKeys) {
         foreach ($filterKeys as $item) {
             $this->filterByKeyExact($request, $item, $modelQuery);
+        }
+    }
+
+    private function filterOrByKeysExact(Request $request, & $modelQuery, $filterOrKeys) {
+        foreach ($filterOrKeys as $item) {
+            $this->filterOrByKeyExact($request, $item, $modelQuery);
         }
     }
 
@@ -192,7 +210,9 @@ trait CommonCRUD
      */
     public function commonUpdate(Request $request, $model)
     {
-        if ($model->update($request->all())) {
+        $model->fill($request->all());
+
+        if ($model->save()) {
             return $this->show($model->id);
         } else {
             return $this->jsonResponseServerError([

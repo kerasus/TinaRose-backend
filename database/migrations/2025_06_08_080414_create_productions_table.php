@@ -16,7 +16,10 @@ return new class extends Migration
             $table->unsignedBigInteger('user_id');
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
 
-            $table->unsignedBigInteger('product_part_id');
+            $table->unsignedBigInteger('product_id')->nullable();
+            $table->foreign('product_id')->references('id')->on('products')->onDelete('set null');
+
+            $table->unsignedBigInteger('product_part_id')->nullable();
             $table->foreign('product_part_id')->references('id')->on('product_parts')->onDelete('cascade');
 
             $table->unsignedBigInteger('fabric_id')->nullable(); // فقط برای برش

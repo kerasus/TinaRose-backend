@@ -22,7 +22,7 @@ class ProductPartController extends Controller
     public function index(Request $request): JsonResponse
     {
         $config = [
-            'filterKeys' => ['name']
+            'filterKeys' => ['name', 'code']
         ];
 
         return $this->commonIndex($request, ProductPart::class, $config);

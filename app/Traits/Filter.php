@@ -78,10 +78,24 @@ trait Filter
         }
     }
 
+    private function filterOrByKey($request, $key, & $modelQuery) {
+        $keyValue = trim($request->get($key));
+        if (strlen($keyValue) > 0) {
+            $modelQuery = $modelQuery->orWhere($key, 'like', '%' . $keyValue . '%');
+        }
+    }
+
     private function filterByKeyExact($request, $key, & $modelQuery) {
         $keyValue = trim($request->get($key));
         if (strlen($keyValue) > 0) {
             $modelQuery = $modelQuery->where($key, '=', $keyValue);
+        }
+    }
+
+    private function filterOrByKeyExact($request, $key, & $modelQuery) {
+        $keyValue = trim($request->get($key));
+        if (strlen($keyValue) > 0) {
+            $modelQuery = $modelQuery->orWhere($key, '=', $keyValue);
         }
     }
 

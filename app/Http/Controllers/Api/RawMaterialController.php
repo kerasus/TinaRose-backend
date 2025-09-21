@@ -22,7 +22,7 @@ class RawMaterialController extends Controller
     public function index(Request $request): JsonResponse
     {
         $config = [
-            'filterKeys' => ['name'],
+            'filterKeys' => ['name', 'code'],
             'filterKeysExact' => ['unit_small', 'unit_large']
         ];
 

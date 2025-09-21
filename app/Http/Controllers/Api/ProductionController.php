@@ -33,6 +33,7 @@ class ProductionController extends Controller
                 'user_id',
                 'color_id',
                 'fabric_id',
+                'product_id',
                 'production_date',
                 'product_part_id'
             ],
@@ -40,6 +41,7 @@ class ProductionController extends Controller
                 'user',
                 'color',
                 'fabric',
+                'product',
                 'productPart',
             ]
         ];
@@ -88,18 +90,38 @@ class ProductionController extends Controller
         $workerRoles = ['FabricCutter', 'ColoringWorker', 'MoldingWorker'];
 
         $isWorker = $roleNames->intersect($workerRoles)->isNotEmpty();
+        $isAssembler = $roleNames->contains('Assembler');
 
-        $validated = Validator::make($request->all(), [
+        $baseRules = [
             'user_id' => 'required|exists:users,id',
-            'product_part_id' => 'required|exists:product_parts,id',
+            'bunch_count' => 'required|numeric|min:0.01',
+            'description' => 'nullable|string',
             'production_date' => [
                 'required',
                 'date_format:Y-m-d',
-                $isWorker ? 'before_or_equal:' . Carbon::now()->format('Y-m-d') : ''
-            ],
-            'bunch_count' => 'required|numeric|min:0.01',
-            'description' => 'nullable|string'
-        ])->validate();
+                ($isWorker || $isAssembler) ? 'before_or_equal:' . Carbon::now()->format('Y-m-d') : ''
+            ]
+        ];
+
+        if ($isAssembler) {
+            $baseRules['product_id'] = 'required|exists:products,id';
+        } else {
+            $baseRules['product_part_id'] = 'required|exists:product_parts,id';
+        }
+
+        $validated = Validator::make($request->all(), $baseRules)->validate();
+
+//        $validated = Validator::make($request->all(), [
+//            'user_id' => 'required|exists:users,id',
+//            'product_part_id' => 'required|exists:product_parts,id',
+//            'production_date' => [
+//                'required',
+//                'date_format:Y-m-d',
+//                $isWorker ? 'before_or_equal:' . Carbon::now()->format('Y-m-d') : ''
+//            ],
+//            'bunch_count' => 'required|numeric|min:0.01',
+//            'description' => 'nullable|string'
+//        ])->validate();
 
         if ($roleNames->contains('FabricCutter')) {
             $request->validate([
@@ -120,6 +142,17 @@ class ProductionController extends Controller
                 'color_id' => 'required|exists:colors,id'
             ]);
             $validated['color_id'] = $request->input('color_id');
+        }
+
+        if ($isAssembler) {
+            $disallowedFields = ['product_part_id', 'fabric_id', 'color_id'];
+            foreach ($disallowedFields as $field) {
+                if ($request->has($field)) {
+                    return response()->json([
+                        'error' => "ثبت فیلد {$field} برای مونتاژ کار مجاز نیست."
+                    ], 422);
+                }
+            }
         }
 
         $production = Production::create($validated);

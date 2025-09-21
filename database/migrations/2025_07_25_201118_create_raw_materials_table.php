@@ -14,11 +14,11 @@ return new class extends Migration
         Schema::create('raw_materials', function (Blueprint $table) {
             $table->id();
             $table->string('name');
+            $table->string('code');
             $table->string('unit_large')->nullable();
             $table->string('unit_small');
             $table->integer('conversion_rate')->default(1);
-            $table->decimal('initial_stock', 12, 2)->default(0);
-            $table->decimal('current_stock', 12, 2)->default(0);
+            $table->decimal('initial_stock', 14, 4)->default(0);
             $table->timestamps();
         });
     }

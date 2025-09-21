@@ -17,7 +17,18 @@ class UserController extends Controller
     {
         // Apply authorization middleware if needed
         $this->middleware('auth:sanctum');
-        $this->middleware('role:Manager')->only(['index', 'store', 'show', 'update', 'destroy', 'assignRole', 'removeRole']);
+        $this->middleware('role:Manager')->only(['store', 'update', 'destroy', 'assignRole', 'removeRole']);
+        $this->middleware(function ($request, $next) {
+            $user = $request->user();
+
+            if (!$user->hasAnyRole(['Manager', 'Accountant', 'MiddleWorker'])) {
+                return response()->json([
+                    'error' => 'دسترسی غیرمجاز'
+                ], 403);
+            }
+
+            return $next($request);
+        })->only(['index', 'show']);
     }
 
     /**
@@ -35,6 +46,9 @@ class UserController extends Controller
                 'username',
                 'email',
                 'mobile'
+            ],
+            'scopes' => [
+                'role'
             ]
         ];
 

@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class Production extends Model
 {
     protected $fillable = [
-        'user_id', 'product_part_id', 'fabric_id', 'color_id',
+        'user_id', 'product_part_id', 'fabric_id', 'color_id', 'product_id',
         'production_date', 'bunch_count', 'description'
     ];
 
@@ -20,6 +20,11 @@ class Production extends Model
     public function productPart()
     {
         return $this->belongsTo(ProductPart::class, 'product_part_id');
+    }
+
+    public function product()
+    {
+        return $this->belongsTo(Product::class, 'product_id');
     }
 
     public function fabric()

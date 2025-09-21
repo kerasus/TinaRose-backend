@@ -7,5 +7,5 @@ use Illuminate\Database\Eloquent\Model;
 
 class ProductPart extends Model
 {
-    protected $fillable = ['name', 'count_per_bunch'];
+    protected $fillable = ['name', 'code', 'initial_stock', 'count_per_bunch'];
 }

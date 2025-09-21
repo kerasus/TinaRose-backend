@@ -8,11 +8,11 @@ class RawMaterial extends Model
 {
     protected $fillable = [
         'name',
+        'code',
         'unit_large',
         'unit_small',
         'conversion_rate',
-        'initial_stock',
-        'current_stock'
+        'initial_stock'
     ];
 
     // Polymorphic Inventory

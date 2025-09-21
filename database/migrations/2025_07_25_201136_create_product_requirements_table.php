@@ -16,7 +16,7 @@ return new class extends Migration
             $table->unsignedBigInteger('product_id');
             $table->unsignedBigInteger('required_item_id');
             $table->string('required_item_type');
-            $table->decimal('quantity', 12, 2);
+            $table->decimal('quantity', 14, 4);
             $table->string('unit'); // مثل 'don', 'meter'
 
             $table->foreign('product_id')->references('id')->on('products')->onDelete('cascade');
