@@ -18,7 +18,6 @@ return new class extends Migration
             $table->string('unit_large')->nullable();
             $table->string('unit_small');
             $table->integer('conversion_rate')->default(1);
-            $table->decimal('initial_stock', 14, 4)->default(0);
             $table->timestamps();
         });
     }

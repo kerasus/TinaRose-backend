@@ -11,8 +11,7 @@ class RawMaterial extends Model
         'code',
         'unit_large',
         'unit_small',
-        'conversion_rate',
-        'initial_stock'
+        'conversion_rate'
     ];
 
     // Polymorphic Inventory

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Models\User;
 use App\Traits\Filter;
 use App\Traits\CommonCRUD;
+use App\Enums\UserRoleType;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Http\Controllers\Controller;
@@ -21,7 +22,12 @@ class UserController extends Controller
         $this->middleware(function ($request, $next) {
             $user = $request->user();
 
-            if (!$user->hasAnyRole(['Manager', 'Accountant', 'MiddleWorker'])) {
+            if (!$user->hasAnyRole([
+                UserRoleType::Manager,
+                UserRoleType::Accountant,
+                UserRoleType::MiddleWorker,
+                UserRoleType::WarehouseKeeper
+            ])) {
                 return response()->json([
                     'error' => 'دسترسی غیرمجاز'
                 ], 403);
@@ -44,6 +50,7 @@ class UserController extends Controller
                 'firstname',
                 'lastname',
                 'username',
+                'employee_code',
                 'email',
                 'mobile'
             ],

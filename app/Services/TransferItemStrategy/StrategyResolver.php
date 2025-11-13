@@ -2,16 +2,34 @@
 
 namespace App\Services\TransferItemStrategy;
 
+use App\Models\Product;
 use App\Models\TransferItem;
-use Illuminate\Support\Facades\App;
 
 class StrategyResolver
 {
-    public static function resolve(TransferItem $item): TransferStrategyInterface
+    /**
+     * Resolve strategy based on transfer item or raw data array
+     *
+     * @param TransferItem|array $item
+     * @return TransferStrategyInterface
+     */
+    public static function resolve($item): TransferStrategyInterface
     {
-        return match($item->item_type) {
-            'App\Models\Product' => App::make(ProductTransferStrategy::class),
-            default => App::make(DefaultTransferStrategy::class)
+        if (is_array($item)) {
+            $itemType = $item['item_type'] ?? null;
+        } else {
+            $itemType = $item->item_type ?? null;
+        }
+
+        if (!$itemType || !class_exists($itemType)) {
+            throw new \InvalidArgumentException('Invalid item type provided.');
+        }
+
+        return match($itemType) {
+            Product::class => new ProductTransferStrategy(),
+//            ProductPart::class, // merge with default
+//            RawMaterial::class => new DefaultTransferStrategy(), // merge with default
+            default => new DefaultTransferStrategy()
         };
     }
 }

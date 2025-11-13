@@ -24,6 +24,7 @@ class User extends Authenticatable
         'lastname',
         'email',
         'username',
+        'employee_code',
         'mobile',
         'password',
         'mobile_verification_code',
@@ -57,24 +58,6 @@ class User extends Authenticatable
      * @var array<int, string>
      */
     protected $appends = ['roles_list'];
-
-    /**
-     * Relationship: A user can belong to many units (many-to-many).
-     */
-    public function units(): BelongsToMany
-    {
-        return $this->belongsToMany(Unit::class, 'unit_user')
-            ->withPivot('role') // Include the role in the pivot table
-            ->withTimestamps();
-    }
-
-    /**
-     * Relationship: A user can have many transactions.
-     */
-    public function transactions(): HasMany
-    {
-        return $this->hasMany(Transaction::class);
-    }
 
     /**
      * Get the user's roles as an array of role names.

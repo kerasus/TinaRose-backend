@@ -12,7 +12,6 @@ class Product extends Model
         'unit_large',
         'unit_small',
         'conversion_rate',
-        'initial_stock',
         'current_stock'
     ];
 

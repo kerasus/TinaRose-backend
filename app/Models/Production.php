@@ -37,7 +37,14 @@ class Production extends Model
         return $this->belongsTo(Color::class);
     }
 
-    public function scopeSummaryQuery($query, $roleName = null, $date = null, $productPartId = null, $colorId = null, $userId = null, $fabricId = null)
+    public function scopeSummaryQuery($query,
+                                      $roleName = null,
+                                      $dateFrom = null,
+                                      $dateTo = null,
+                                      $productPartId = null,
+                                      $colorId = null,
+                                      $userId = null,
+                                      $fabricId = null)
     {
         $query->join('product_parts', 'productions.product_part_id', '=', 'product_parts.id')
             ->leftJoin('colors', 'productions.color_id', '=', 'colors.id')
@@ -52,8 +59,12 @@ class Production extends Model
             ->groupBy('product_parts.id', 'product_parts.name', 'colors.id', 'colors.name', 'fabrics.id', 'fabrics.name');
 //            ->groupBy('product_parts.id', 'product_parts.name', 'colors.id', 'colors.name');
 
-        if ($date) {
-            $query->where('productions.production_date', $date);
+        if ($dateFrom && $dateTo) {
+            $query->whereBetween('productions.production_date', [$dateFrom, $dateTo]);
+        } elseif ($dateFrom) {
+            $query->where('productions.production_date', '>=', $dateFrom);
+        } elseif ($dateTo) {
+            $query->where('productions.production_date', '<=', $dateTo);
         }
 
         if ($roleName) {

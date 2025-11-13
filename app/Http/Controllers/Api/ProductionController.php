@@ -208,14 +208,9 @@ class ProductionController extends Controller
 
     public function summary(Request $request): JsonResponse
     {
-        $roleName = $request->input('role');
-        $userId = $request->input('user_id');
-        $colorId = $request->input('color_id');
-        $fabricId = $request->input('fabric_id');
-        $date = $request->input('production_date');
-        $productPartId = $request->input('product_part_id');
+        $this->validateSummaryRequest($request);
 
-        $results = Production::query()->summaryQuery($roleName, $date, $productPartId, $colorId, $userId, $fabricId)->get();
+        $results = $this->getSummaryData($request);
 
         return response()->json($results);
     }
@@ -223,18 +218,9 @@ class ProductionController extends Controller
     public function summaryExport(Request $request)
     {
 
-        $request->validate([
-            'production_date' => 'required|date_format:Y-m-d',
-        ]);
+        $this->validateSummaryRequest($request);
 
-        $roleName = $request->input('role');
-        $userId = $request->input('user_id');
-        $colorId = $request->input('color_id');
-        $fabricId = $request->input('fabric_id');
-        $date = $request->input('production_date');
-        $productPartId = $request->input('product_part_id');
-
-        $data = Production::query()->summaryQuery($roleName, $date, $productPartId, $colorId, $userId, $fabricId)->get();
+        $data = $this->getSummaryData($request);
 
         if ($data->isEmpty()) {
             return response()->json([
@@ -269,5 +255,61 @@ class ProductionController extends Controller
         };
 
         return response()->streamDownload($callback, "گزارش-تولید-" . now()->format('Y-m-d') . ".csv", $headers);
+    }
+
+    /**
+     * Validate summary request inputs.
+     *
+     * @param Request $request
+     * @throws ValidationException
+     */
+    private function validateSummaryRequest(Request $request): void
+    {
+        $request->validate([
+            'role' => 'nullable|string|exists:roles,name',
+            'user_id' => 'nullable|exists:users,id',
+            'color_id' => 'nullable|exists:colors,id',
+            'fabric_id' => 'nullable|exists:fabrics,id',
+            'product_part_id' => 'nullable|exists:product_parts,id',
+            'production_date_from' => 'nullable|date_format:Y-m-d',
+            'production_date_to' => 'nullable|date_format:Y-m-d',
+        ], [
+            'role.exists' => 'نقش مورد نظر یافت نشد.',
+            'user_id.exists' => 'کاربر مورد نظر یافت نشد.',
+            'color_id.exists' => 'رنگ مورد نظر یافت نشد.',
+            'fabric_id.exists' => 'پارچه مورد نظر یافت نشد.',
+            'product_part_id.exists' => 'زیرمحصول مورد نظر یافت نشد.',
+            'production_date_from.date_format' => 'فرمت تاریخ شروع نامعتبر است.',
+            'production_date_to.date_format' => 'فرمت تاریخ پایان نامعتبر است.',
+        ]);
+
+        $dateFrom = $request->input('production_date_from');
+        $dateTo = $request->input('production_date_to');
+
+        if ($dateFrom && $dateTo && $dateFrom > $dateTo) {
+            throw ValidationException::withMessages([
+                'production_date_from' => ['تاریخ شروع باید کوچکتر یا مساوی تاریخ پایان باشد.'],
+                'production_date_to' => ['تاریخ پایان باید بزرگتر یا مساوی تاریخ شروع باشد.']
+            ]);
+        }
+    }
+
+    /**
+     * Get summary data without validation.
+     *
+     * @param Request $request
+     * @return \Illuminate\Support\Collection
+     */
+    private function getSummaryData(Request $request)
+    {
+        return Production::query()->summaryQuery(
+            roleName: $request->input('role'),
+            dateFrom: $request->input('production_date_from'),
+            dateTo: $request->input('production_date_to'),
+            productPartId: $request->input('product_part_id'),
+            colorId: $request->input('color_id'),
+            userId: $request->input('user_id'),
+            fabricId: $request->input('fabric_id')
+        )->get();
     }
 }

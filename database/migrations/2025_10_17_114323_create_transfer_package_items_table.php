@@ -11,22 +11,21 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('inventory_items', function (Blueprint $table) {
+        Schema::create('transfer_package_items', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('inventory_id');
-            $table->foreign('inventory_id')->references('id')->on('inventories')->onDelete('cascade');
+            $table->unsignedBigInteger('transfer_package_id');
+            $table->foreign('transfer_package_id')->references('id')->on('transfer_packages')->onDelete('cascade');
 
             // Polymorphic relation
             $table->unsignedBigInteger('item_id');
             $table->string('item_type');
-
-            $table->decimal('quantity', 14, 4)->default(0);
-            $table->text('notes')->nullable();
-
             $table->unsignedBigInteger('color_id')->nullable();
             $table->foreign('color_id')->references('id')->on('colors')->onDelete('set null');
 
-            $table->unique(['inventory_id', 'item_id', 'item_type', 'color_id'], 'inventory_item_unique');
+            $table->decimal('quantity', 12, 2);
+            $table->text('notes')->nullable();
+
+            $table->unique(['transfer_package_id', 'item_id', 'item_type', 'color_id'], 'package_item_unique');
 
             $table->timestamps();
         });
@@ -37,6 +36,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('inventory_items');
+        Schema::dropIfExists('transfer_package_items');
     }
 };

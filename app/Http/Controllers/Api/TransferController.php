@@ -2,9 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Models\InventoryItem;
 use App\Models\User;
-use App\Services\TransferItemStrategy\StrategyResolver;
+use App\Models\Color;
 use App\Traits\Filter;
 use App\Models\Product;
 use App\Models\Transfer;
@@ -14,12 +13,14 @@ use App\Models\RawMaterial;
 use App\Models\ProductPart;
 use Illuminate\Http\Request;
 use App\Models\TransferItem;
+use App\Models\InventoryItem;
 use Illuminate\Validation\Rule;
+use App\Enums\TransferStatusType;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
-use App\Observers\TransferObserver;
 use App\Http\Controllers\Controller;
 use Illuminate\Validation\ValidationException;
+use App\Services\TransferItemStrategy\StrategyResolver;
 
 class TransferController extends Controller
 {
@@ -35,8 +36,8 @@ class TransferController extends Controller
     {
         $config = [
             'filterKeys' => ['description'],
+            'filterKeysExact' => ['status'],
             'filterOrKeysExact' => [
-                'from_user_id',
                 'from_user_id',
                 'to_user_id',
             ],
@@ -100,123 +101,229 @@ class TransferController extends Controller
                 ])
             ],
             'items.*.item_id'     => 'required|integer',
+            'items.*.color_id'    => 'nullable|exists:colors,id',
             'items.*.quantity'    => 'required|numeric|min:0.01',
             'items.*.notes'       => 'nullable|string'
         ]);
 
-
+        // --- ولیدیشن آیتم‌ها ---
         foreach ($request->items as $index => $item) {
-            $itemType = $item['item_type'];
-            $itemId = $item['item_id'];
+            $itemType = $item['item_type'] ?? null;
+            $itemId = $item['item_id'] ?? null;
+            $colorId = $item['color_id'] ?? null;
+            $rowCounter = $index + 1;
 
             if (!class_exists($itemType)) {
                 return response()->json([
-                    'message' => "نوع آیتم نامعتبر در ردیف {$index}: {$itemType}"
+                    'errors' => [
+                        'validate_outgoing' => "نوع آیتم نامعتبر در ردیف {$rowCounter}: {$itemType}"
+                    ]
                 ], 422);
             }
 
             if (!is_subclass_of($itemType, \Illuminate\Database\Eloquent\Model::class)) {
                 return response()->json([
-                    'message' => "مدل ارث‌برده از Eloquent نیست در ردیف {$index}: {$itemType}"
+                    'errors' => [
+                        'validate_outgoing' => "مدل ارث‌برده از Eloquent نیست در ردیف {$rowCounter}: {$itemType}"
+                    ]
                 ], 422);
             }
 
             $exists = $itemType::where('id', $itemId)->exists();
             if (!$exists) {
                 return response()->json([
-                    'message' => "آیتم با شناسه {$itemId} در مدل {$itemType} یافت نشد (ردیف {$index})."
+                    'errors' => [
+                        'validate_outgoing' => "آیتم با شناسه {$itemId} در مدل {$itemType} یافت نشد (ردیف {$rowCounter})."
+                    ]
+                ], 422);
+            }
+
+            if ($itemType === Product::class && !$colorId) {
+                return response()->json([
+                    'errors' => [
+                        'validate_outgoing' => "برای محصول در ردیف {$rowCounter}، رنگ الزامی است."
+                    ]
+                ], 422);
+            }
+
+            if (
+                ($request->from_inventory_type || $request->from_user_id) &&
+                $itemType === ProductPart::class &&
+                !$colorId
+            ) {
+                return response()->json([
+                    'errors' => [
+                        'validate_outgoing' => "برای زیر محصول در ردیف {$rowCounter}، رنگ الزامی است."
+                    ]
+                ], 422);
+            }
+
+            if ($colorId && !Color::find($colorId)) {
+                return response()->json([
+                    'errors' => [
+                        'validate_outgoing' => "رنگ با شناسه {$colorId} یافت نشد (ردیف {$rowCounter})."
+                    ]
                 ], 422);
             }
         }
 
-        $fromInventory = DB::transaction(function () use ($request, $validTypes) {
-            if ($request->from_inventory_type && in_array($request->from_inventory_type, $validTypes)) {
-                if ($request->from_inventory_type !== 'assembler') {
-                    return Inventory::firstOrCreate(
-                        ['type' => $request->from_inventory_type],
-                        [
-                            'name' => $this->getInventoryNameByType($request->from_inventory_type),
-                            'description' => "انبار عمومی - {$request->from_inventory_type}",
-                            'user_id' => null,
-                            'type' => $request->from_inventory_type
-                        ]
-                    );
+        try {
+            // --- اجرای کامل در یک تراکنش ---
+            $transfer = DB::transaction(function () use ($request, $validTypes) {
+                // --- تعیین انبار مبدأ ---
+                $fromInventory = null;
+                if ($request->from_inventory_type || $request->from_user_id) {
+                    $fromInventory = DB::transaction(function () use ($request, $validTypes) {
+                        if ($request->from_inventory_type && in_array($request->from_inventory_type, $validTypes)) {
+                            if ($request->from_inventory_type !== 'assembler') {
+                                return Inventory::firstOrCreate(
+                                    ['type' => $request->from_inventory_type],
+                                    [
+                                        'name' => $this->getInventoryNameByType($request->from_inventory_type),
+                                        'description' => "انبار عمومی - {$request->from_inventory_type}",
+                                        'user_id' => null,
+                                        'type' => $request->from_inventory_type
+                                    ]
+                                );
+                            }
+
+                            if (!$request->from_user_id) {
+                                throw ValidationException::withMessages([
+                                    'from_user_id' => ['برای انبار نوع مونتاژکار باید کاربر مبدأ مشخص شود.']
+                                ]);
+                            }
+
+                            $user = User::findOrFail($request->from_user_id);
+                            return $this->getOrCreateUserInventory($user);
+                        }
+
+                        if ($request->from_user_id) {
+                            return $this->getOrCreateUserInventory(User::findOrFail($request->from_user_id));
+                        }
+
+                        throw ValidationException::withMessages([
+                            'from_inventory_type' => ['لطفاً حداقل یکی از «نوع انبار مبدأ» یا «کاربر مبدأ» را مشخص کنید.']
+                        ]);
+                    });
                 }
 
-                if (!$request->from_user_id) {
+                // --- تعیین انبار مقصد ---
+                $toInventory = null;
+                // اگر to_inventory_type وجود داشت، to_user_id الزامیه
+                if ($request->to_inventory_type && !$request->to_user_id) {
                     throw ValidationException::withMessages([
-                        'from_user_id' => ['برای انبار نوع مونتاژکار باید کاربر مبدأ مشخص شود.']
+                        'to_user_id' => ['برای انبار مقصد، کاربر گیرنده الزامی است.']
                     ]);
                 }
+                if ($request->to_inventory_type || $request->to_user_id) {
+                    $toInventory = DB::transaction(function () use ($request, $validTypes) {
+                        if ($request->to_inventory_type && in_array($request->to_inventory_type, $validTypes)) {
+                            if ($request->to_inventory_type !== 'assembler') {
+                                return Inventory::firstOrCreate(
+                                    ['type' => $request->to_inventory_type],
+                                    [
+                                        'name' => $this->getInventoryNameByType($request->to_inventory_type),
+                                        'description' => "انبار عمومی - {$request->to_inventory_type}",
+                                        'user_id' => null,
+                                        'type' => $request->to_inventory_type
+                                    ]
+                                );
+                            }
 
-                $user = User::findOrFail($request->from_user_id);
-                return $this->getOrCreateUserInventory($user);
-            }
+                            if (!$request->to_user_id) {
+                                throw ValidationException::withMessages([
+                                    'to_user_id' => ['برای انبار نوع "assembler" باید کاربر مقصد مشخص شود.']
+                                ]);
+                            }
 
-            if ($request->from_user_id) {
-                return $this->getOrCreateUserInventory(User::findOrFail($request->from_user_id));
-            }
+                            $user = User::findOrFail($request->to_user_id);
+                            return $this->getOrCreateUserInventory($user);
+                        }
 
-            throw ValidationException::withMessages([
-                'from_inventory_type' => ['طفاً حداقل یکی از «نوع انبار مبدأ» یا «کاربر مبدأ» را مشخص کنید.']
-            ]);
-        });
+                        if ($request->to_user_id) {
+                            return $this->getOrCreateUserInventory(User::findOrFail($request->to_user_id));
+                        }
 
-        $toInventory = DB::transaction(function () use ($request, $validTypes) {
-            if ($request->to_inventory_type && in_array($request->to_inventory_type, $validTypes)) {
-                if ($request->to_inventory_type !== 'assembler') {
-                    return Inventory::firstOrCreate(
-                        ['type' => $request->to_inventory_type],
-                        [
-                            'name' => $this->getInventoryNameByType($request->to_inventory_type),
-                            'description' => "انبار عمومی - {$request->to_inventory_type}",
-                            'user_id' => null,
-                            'type' => $request->to_inventory_type
-                        ]
-                    );
+                        throw ValidationException::withMessages([
+                            'to_inventory_type' => [
+                                'لطفاً حداقل یکی از «نوع انبار مقصد» یا «کاربر مقصد» را مشخص کنید.'
+                            ]
+                        ]);
+                    });
                 }
 
-                if (!$request->to_user_id) {
-                    throw ValidationException::withMessages([
-                        'to_user_id' => ['برای انبار نوع "assembler" باید کاربر مقصد مشخص شود.']
-                    ]);
+                // --- ولیدیشن موجودی فقط اگر مبدأ انباری باشه ---
+                if ($fromInventory) {
+
+                    if ($fromInventory->is_locked) {
+                        throw ValidationException::withMessages([
+                            'from_inventory_type' => [
+                                'انبار مبدآ در حال انبارگردانی است. تا پایان انبارگردانی نمی‌توان حواله ثبت کرد.'
+                            ]
+                        ]);
+                    }
+
+                    // گروه‌بندی آیتم‌ها بر اساس item_id, item_type, color_id
+                    $groupedItems = collect($request->items)->groupBy(function ($item) {
+                        return $item['item_id'] . '-' . $item['item_type'] . '-' . ($item['color_id'] ?? 'null');
+                    });
+
+                    foreach ($groupedItems as $group) {
+                        $totalQuantity = $group->sum('quantity');
+                        $firstItem = $group->first();
+
+                        $strategy = StrategyResolver::resolve($firstItem);
+
+                        $inventoryItemData = $firstItem;
+                        $inventoryItemData['quantity'] = $totalQuantity;
+
+                        $validationError = $strategy->validateOutgoing($fromInventory->id, $firstItem);
+
+                        if (!empty($validationError)) {
+                            throw ValidationException::withMessages($validationError);
+                        }
+                    }
                 }
 
-                $user = User::findOrFail($request->to_user_id);
-                return $this->getOrCreateUserInventory($user);
-            }
+                // --- ولیدیشن موجودی فقط اگر مبدأ انباری باشه ---
+                if ($toInventory) {
+                    if ($toInventory->is_locked) {
+                        throw ValidationException::withMessages([
+                            'from_inventory_type' => [
+                                'انبار مقصد در حال انبارگردانی است. تا پایان انبارگردانی نمی‌توان حواله ثبت کرد.'
+                            ]
+                        ]);
+                    }
+                }
 
-            if ($request->to_user_id) {
-                return $this->getOrCreateUserInventory(User::findOrFail($request->to_user_id));
-            }
+                // --- ایجاد حواله ---
+                $transfer = Transfer::create([
+                    'from_user_id' => $request->from_user_id,
+                    'to_user_id' => $request->to_user_id,
+                    'from_inventory_id' => $fromInventory ? $fromInventory->id : null,
+                    'to_inventory_id' => $toInventory ? $toInventory->id : null,
+                    'transfer_date' => $request->transfer_date,
+                    'status' => TransferStatusType::Pending,
+                    'description' => $request->description,
+                ]);
 
-            throw ValidationException::withMessages([
-                'to_inventory_type' => [
-                    'طفاً حداقل یکی از «نوع انبار مقصد» یا «کاربر مقصد» را مشخص کنید.'
+                foreach ($request->items as $item) {
+                    $transfer->items()->create($item);
+                }
+
+                return $transfer;
+            });
+
+            return $this->show($transfer->id);
+        } catch (\Exception $e) {
+            // اگر خطا داخل تراکنش بوده باشه
+            return response()->json([
+                'message' => 'خطا در ایجاد حواله',
+                'errors' => [
+                    $e->getMessage()
                 ]
-            ]);
-        });
-
-        $transfer = DB::transaction(function () use ($request, $fromInventory, $toInventory) {
-            $transfer = Transfer::create([
-                'from_user_id' => $request->from_user_id,
-                'to_user_id' => $request->to_user_id,
-                'from_inventory_id' => $fromInventory->id,
-                'to_inventory_id' => $toInventory->id,
-                'transfer_date' => $request->transfer_date,
-                'description' => $request->description,
-            ]);
-
-            foreach ($request->items as $item) {
-                $transfer->items()->create($item);
-            }
-
-            return $transfer;
-        });
-
-        $this->updateInventoryOnCreate($transfer);
-
-        return $this->show($transfer->id);
+            ], 422);
+        }
     }
 
     /**
@@ -257,6 +364,57 @@ class TransferController extends Controller
     }
 
     /**
+     * Update inventory based on transfer items.
+     * @throws ValidationException
+     */
+    private function updateInventoryOnApproved(Transfer $transfer): void
+    {
+        foreach ($transfer->items as $item) {
+            $strategy = StrategyResolver::resolve($item);
+
+            // From inventory
+            if ($transfer->from_inventory_id) {
+                $fromItem = InventoryItem::firstOrNew(
+                    [
+                        'inventory_id' => $transfer->from_inventory_id,
+                        'item_id' => $item->item_id,
+                        'item_type' => $item->item_type,
+                        'color_id' => $item->color_id,
+                    ], [
+                        'quantity' => 0
+                    ]
+                );
+
+                if (!$fromItem->exists) {
+                    $fromItem->save();
+                }
+
+                $strategy->handleOutgoing($fromItem, $item->quantity);
+            }
+
+            // To inventory
+            if ($transfer->to_inventory_id) {
+                $toItem = InventoryItem::firstOrNew(
+                    [
+                        'inventory_id' => $transfer->to_inventory_id,
+                        'item_id' => $item->item_id,
+                        'item_type' => $item->item_type,
+                        'color_id' => $item->color_id,
+                    ], [
+                        'quantity' => 0
+                    ]
+                );
+
+                if (!$toItem->exists) {
+                    $toItem->save();
+                }
+
+                $strategy->handleIncoming($toItem, $item->quantity);
+            }
+        }
+    }
+
+    /**
      * Display the specified resource.
      *
      * @param int $id
@@ -269,7 +427,8 @@ class TransferController extends Controller
             'toUser:id,firstname,lastname,username',
             'fromInventory:id,user_id,name',
             'toInventory:id,user_id,name',
-            'items.item'
+            'items.item',
+            'items.color',
         ])->findOrFail($id);
 
         return $this->jsonResponseOk($transfer);
@@ -307,6 +466,14 @@ class TransferController extends Controller
      */
     public function destroy(Transfer $transfer): JsonResponse
     {
+        if ($transfer->status === TransferStatusType::Approved) {
+            $validationError = $this->validateReverseApprovedTransfer($transfer);
+
+            if (!empty($validationError)) {
+                return response()->json($validationError, 422);
+            }
+        }
+
         return DB::transaction(function () use ($transfer) {
             $this->updateInventoryOnDelete($transfer);
 
@@ -317,40 +484,57 @@ class TransferController extends Controller
         });
     }
 
-    /**
-     * Update inventory based on transfer items.
-     */
-    private function updateInventoryOnCreate(Transfer $transfer): void
-    {
-        foreach ($transfer->items as $item) {
-            $strategy = StrategyResolver::resolve($item);
+    private function validateReverseApprovedTransfer (Transfer $transfer): array|bool {
 
-            // From inventory
-            if ($transfer->from_inventory_id) {
-                $fromItem = InventoryItem::firstOrCreate(
-                    [
-                        'inventory_id' => $transfer->from_inventory_id,
-                        'item_id' => $item->item_id,
-                        'item_type' => $item->item_type
+        $transferItems = $transfer->items;
+        $fromInventory = null;
+        $toInventory = null;
+
+        // --- بررسی انبار مبدأ ---
+        if ($transfer->from_inventory_id) {
+            $fromInventory = Inventory::find($transfer->from_inventory_id);
+
+            if ($fromInventory && $fromInventory->is_locked) {
+                return [
+                    'errors' => [
+                        'from_inventory_is_locked' => 'انبار مبدأ در حال انبارگردانی است. تا پایان انبارگردانی نمی‌توان حواله مربوط به آن را حذف کرد.'
                     ]
-                );
-
-                $strategy->handleOutgoing($fromItem, $item->quantity);
-            }
-
-            // To inventory
-            if ($transfer->to_inventory_id) {
-                $toItem = InventoryItem::firstOrCreate(
-                    [
-                        'inventory_id' => $transfer->to_inventory_id,
-                        'item_id' => $item->item_id,
-                        'item_type' => $item->item_type
-                    ]
-                );
-
-                $strategy->handleIncoming($toItem, $item->quantity);
+                ];
             }
         }
+
+        // --- بررسی انبار مقصد ---
+        if ($transfer->to_inventory_id) {
+            $toInventory = Inventory::find($transfer->to_inventory_id);
+
+            if ($toInventory && $toInventory->is_locked) {
+                return [
+                    'errors' => [
+                        'to_inventory_is_locked' => 'انبار مقصد در حال انبارگردانی است. تا پایان انبارگردانی نمی‌توان حواله مربوط به آن را حذف کرد.'
+                    ]
+                ];
+            }
+        }
+
+        foreach ($transferItems as $transferItem) {
+            if ($fromInventory) {
+                $strategy = StrategyResolver::resolve($transferItem);
+                $validationError = $strategy->validateReverseOutgoing($transferItem);
+                if (!empty($validationError)) {
+                    return $validationError;
+                }
+            }
+
+            if ($toInventory) {
+                $strategy = StrategyResolver::resolve($transferItem);
+                $validationError = $strategy->validateReverseIncoming($transferItem);
+                if (!empty($validationError)) {
+                    return $validationError;
+                }
+            }
+        }
+
+        return [];
     }
 
     /**
@@ -358,6 +542,10 @@ class TransferController extends Controller
      */
     private function updateInventoryOnDelete(Transfer $transfer): void
     {
+        if ($transfer->status !== TransferStatusType::Approved) {
+            return;
+        }
+
         foreach ($transfer->items as $item) {
             $strategy = StrategyResolver::resolve($item);
 
@@ -367,7 +555,8 @@ class TransferController extends Controller
                     [
                         'inventory_id' => $transfer->from_inventory_id,
                         'item_id' => $item->item_id,
-                        'item_type' => $item->item_type
+                        'item_type' => $item->item_type,
+                        'color_id' => $item->color_id ?? null
                     ]
                 );
 
@@ -380,13 +569,75 @@ class TransferController extends Controller
                     [
                         'inventory_id' => $transfer->to_inventory_id,
                         'item_id' => $item->item_id,
-                        'item_type' => $item->item_type
+                        'item_type' => $item->item_type,
+                        'color_id' => $item->color_id ?? null
                     ]
                 );
 
                 $strategy->reverseIncoming($toItem, $item->quantity);
             }
         }
+    }
+
+    /**
+     * Approve a pending transfer.
+     *
+     * @param Request $request
+     * @param Transfer $transfer
+     * @return JsonResponse
+     */
+    public function approve(Request $request, Transfer $transfer): JsonResponse
+    {
+        if ($transfer->status !== TransferStatusType::Pending) {
+            return response()->json([
+                'message' => 'این حواله قبلاً تأیید یا رد شده است.'
+            ], 422);
+        }
+
+        // فقط گیرنده می‌تونه تأیید کنه
+        if ($transfer->to_user_id !== auth()->id()) {
+            return response()->json([
+                'message' => 'فقط گیرنده این حواله می تواند تأیید کنه.'
+            ], 403);
+        }
+
+        $transfer->update([
+            'status' => TransferStatusType::Approved,
+            'approved_at' => now()
+        ]);
+
+        // آپدیت انبارها
+        $this->updateInventoryOnApproved($transfer);
+
+        return response()->json([
+            'message' => 'حواله با موفقیت تأیید شد.',
+            'transfer' => $transfer
+        ]);
+    }
+
+    public function reject(Request $request, Transfer $transfer): JsonResponse
+    {
+        if ($transfer->status !== TransferStatusType::Pending) {
+            return response()->json([
+                'message' => 'این حواله قبلاً تأیید یا رد شده است.'
+            ], 422);
+        }
+
+        if ($transfer->to_user_id !== auth()->id()) {
+            return response()->json([
+                'message' => 'فقط گیرنده این حواله می تواند رد کنه.'
+            ], 403);
+        }
+
+        $transfer->update([
+            'status' => TransferStatusType::Rejected,
+            'rejected_at' => now()
+        ]);
+
+        return response()->json([
+            'message' => 'حواله با موفقیت رد شد.',
+            'transfer' => $transfer
+        ]);
     }
 
     /**

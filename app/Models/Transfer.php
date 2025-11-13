@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\TransferStatusType;
 use Illuminate\Database\Eloquent\Model;
 
 class Transfer extends Model
@@ -12,10 +13,26 @@ class Transfer extends Model
         'from_inventory_id',
         'to_inventory_id',
         'transfer_date',
-        'description'
+        'status',
+        'description',
+        'approved_at',
+        'rejected_at'
     ];
 
     protected $dates = ['transfer_date'];
+
+    protected $casts = [
+        'to_inventory_id' => 'integer',
+        'from_inventory_id' => 'integer',
+        'to_user_id' => 'integer',
+        'from_user_id' => 'integer',
+        'transfer_date' => 'date',
+        'status' => TransferStatusType::class,
+        'approved_at' => 'datetime',
+        'rejected_at' => 'datetime'
+    ];
+
+    protected $appends = ['status_label'];
 
     public function fromUser()
     {
@@ -40,5 +57,10 @@ class Transfer extends Model
     public function items()
     {
         return $this->hasMany(TransferItem::class);
+    }
+
+    public function getStatusLabelAttribute(): string
+    {
+        return $this->status?->label() ?? 'نا مشخص';
     }
 }

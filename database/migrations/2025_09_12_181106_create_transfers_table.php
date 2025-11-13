@@ -18,7 +18,10 @@ return new class extends Migration
             $table->unsignedBigInteger('from_inventory_id')->nullable();
             $table->unsignedBigInteger('to_inventory_id')->nullable();
             $table->date('transfer_date');
+            $table->enum('status', ['pending', 'approved', 'rejected'])->default('pending');
             $table->text('description')->nullable();
+            $table->timestamp('approved_at')->nullable()->after('status');
+            $table->timestamp('rejected_at')->nullable()->after('approved_at');
             $table->timestamps();
 
             // Foreign Keys

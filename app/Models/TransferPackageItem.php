@@ -4,14 +4,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class TransferItem extends Model
+class TransferPackageItem extends Model
 {
     protected $fillable = [
-        'transfer_id',
+        'transfer_package_id',
         'item_id',
         'item_type',
-        'quantity',
         'color_id',
+        'quantity',
         'notes'
     ];
 
@@ -19,7 +19,8 @@ class TransferItem extends Model
         'id' => 'integer',
         'item_id' => 'integer',
         'color_id' => 'integer',
-        'transfer_id' => 'integer',
+        'transfer_package_id' => 'integer',
+        'quantity' => 'decimal:2'
     ];
 
     public function item()
@@ -27,13 +28,13 @@ class TransferItem extends Model
         return $this->morphTo('item', 'item_type', 'item_id');
     }
 
-    public function transfer()
-    {
-        return $this->belongsTo(Transfer::class);
-    }
-
     public function color()
     {
-        return $this->belongsTo(Color::class, 'color_id');
+        return $this->belongsTo(Color::class);
+    }
+
+    public function package()
+    {
+        return $this->belongsTo(TransferPackage::class, 'transfer_package_id');
     }
 }

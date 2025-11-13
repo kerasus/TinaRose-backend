@@ -11,14 +11,28 @@ class InventoryItem extends Model
         'item_id',
         'item_type',
         'quantity',
+        'color_id',
+        'initial_stock',
         'notes'
     ];
 
     protected $appends = ['current_stock'];
 
+    protected $casts = [
+        'id' => 'integer',
+        'item_id' => 'integer',
+        'color_id' => 'integer',
+        'inventory_id' => 'integer',
+    ];
+
     public function item()
     {
         return $this->morphTo('item', 'item_type', 'item_id');
+    }
+
+    public function color()
+    {
+        return $this->belongsTo(Color::class);
     }
 
     public function inventory()
@@ -28,7 +42,8 @@ class InventoryItem extends Model
 
     public function getCurrentStockAttribute(): float
     {
-        return $this->quantity+ $this->item->initial_stock;
+//        return $this->quantity + $this->item->initial_stock;
+        return $this->quantity + $this->initial_stock;
     }
 
     public function scopeNonZero($query)

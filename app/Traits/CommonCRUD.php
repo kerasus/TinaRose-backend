@@ -14,7 +14,7 @@ trait CommonCRUD
      * @param Request $request
      * @param $modelClass
      * @param array $config
-     * @return array|Closure|JsonResponse
+     * @return array|JsonResponse
      */
     public function commonIndex(Request $request, $modelClass, array $config = [])
     {
@@ -136,9 +136,15 @@ trait CommonCRUD
     }
 
     private function filterOrByKeysExact(Request $request, & $modelQuery, $filterOrKeys) {
-        foreach ($filterOrKeys as $item) {
-            $this->filterOrByKeyExact($request, $item, $modelQuery);
+        if (empty($filterOrKeys)) {
+            return;
         }
+
+        $modelQuery->where(function ($query) use ($request, $filterOrKeys) {
+            foreach ($filterOrKeys as $item) {
+                $this->filterOrByKeyExact($request, $item, $query);
+            }
+        });
     }
 
     private function filterByKeysIn(Request $request, & $modelQuery, $filterKeysIn) {

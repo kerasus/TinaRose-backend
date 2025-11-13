@@ -16,6 +16,9 @@ return new class extends Migration
             $table->unsignedBigInteger('transfer_id');
             $table->foreign('transfer_id')->references('id')->on('transfers')->onDelete('cascade');
 
+            $table->unsignedBigInteger('color_id')->nullable();
+            $table->foreign('color_id')->references('id')->on('colors')->onDelete('set null');
+
             // Polymorphic relation
             $table->unsignedBigInteger('item_id');
             $table->string('item_type');

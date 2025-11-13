@@ -5,13 +5,16 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\ColorController;
 use App\Http\Controllers\Api\FabricController;
+use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\TransferController;
 use App\Http\Controllers\Api\InventoryController;
 use App\Http\Controllers\Api\ProductionController;
 use App\Http\Controllers\Api\ProductPartController;
 use App\Http\Controllers\Api\RawMaterialController;
+use App\Http\Controllers\Api\InventoryCountController;
 use App\Http\Controllers\Api\DatabaseBackupController;
+use App\Http\Controllers\Api\TransferPackageController;
 
 /*
 |--------------------------------------------------------------------------
@@ -45,8 +48,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('productions', '\\'.ProductionController::class);
     Route::apiResource('product-parts', '\\'.ProductPartController::class);
     Route::apiResource('raw-materials', '\\'.RawMaterialController::class);
+    Route::apiResource('transfer-packages', '\\'.TransferPackageController::class);
+    Route::apiResource('inventory-counts', InventoryCountController::class)->only(['index', 'show', 'destroy']);
+
+    Route::post('/inventory-counts/start', [InventoryCountController::class, 'start']);
+    Route::get('/inventory-counts/{id}/items', [InventoryCountController::class, 'getInventoryItemsPaginated']);
+    Route::put('/inventory-counts/{id}/item', [InventoryCountController::class, 'updateItem']);
+    Route::post('/inventory-counts/{id}/finalize', [InventoryCountController::class, 'finalize']);
 
     Route::post('/transfers/{transfer}/items', [TransferController::class, 'addItem']);
+    Route::post('/transfers/{transfer}/approve', [TransferController::class, 'approve']);
+    Route::post('/transfers/{transfer}/reject', [TransferController::class, 'reject']);
     Route::delete('/transfers/{transfer}/items/{item}', [TransferController::class, 'removeItem']);
 
     Route::post('/products/{product}/requirements', [ProductController::class, 'addRequirement']);
@@ -56,7 +68,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/users/{userId}/assign-role', [UserController::class, 'assignRole']);
     Route::post('/users/{userId}/remove-role', [UserController::class, 'removeRole']);
 
+    Route::delete('/inventories/{inventoryId}/items/{inventoryItemId}/destroy', [InventoryController::class, 'destroyInventoryItem']);
+    Route::post('/inventories/initialize', [InventoryController::class, 'initializeInventories']);
     Route::get('/inventories/{inventory}/items', [InventoryController::class, 'inventoryItems']);
+
+    Route::get('/reports/pending-transfers-count/my/count', [ReportController::class, 'getPendingTransfersCountForUser']);
+    Route::get('/reports/pending-transfers-count/all/count', [ReportController::class, 'getAllPendingTransfersCount']);
+    Route::get('/reports/locked-inventories/count', [ReportController::class, 'getLockedInventoriesCount']);
 
     Route::post('/database/backup', [DatabaseBackupController::class, 'backupDatabase']);
 });

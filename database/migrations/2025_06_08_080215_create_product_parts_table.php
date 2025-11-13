@@ -16,7 +16,6 @@ return new class extends Migration
             $table->string('name');
             $table->string('code');
             $table->integer('count_per_bunch');
-            $table->decimal('initial_stock', 14, 4)->default(0);
             $table->timestamps();
         });
     }
