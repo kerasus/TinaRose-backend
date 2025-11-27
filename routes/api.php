@@ -37,7 +37,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/users/{user_id}/reset-password', [AuthController::class, 'resetPassword'])->name('users.reset.password');
 
     Route::get('productions/summary', [ProductionController::class, 'summary']);
+    Route::get('productions/user-summary', [ProductionController::class, 'userSummary']);
     Route::get('productions/summary-export', [ProductionController::class, 'summaryExport']);
+    Route::get('/productions/user-summary-export', [ProductionController::class, 'userSummaryExport']);
 
     Route::apiResource('users', '\\'.UserController::class);
     Route::apiResource('colors', '\\'.ColorController::class);

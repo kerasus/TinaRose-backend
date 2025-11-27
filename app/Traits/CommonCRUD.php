@@ -51,6 +51,7 @@ trait CommonCRUD
         $this->loadScopes($request, $modelQuery, $configArray['scopes']);
         $this->filterByDate($request, $modelQuery, $configArray['filterDate']);
         $this->filterByKeys($request, $modelQuery, $configArray['filterKeys']);
+        $this->filterByMultipleColumnKeys($request, $modelQuery, $configArray['filterOnMultipleColumnKeys']);
         $this->filterOrByKeys($request, $modelQuery, $configArray['filterOrKeys']);
         $this->filterByKeysExact($request, $modelQuery, $configArray['filterKeysExact']);
         $this->filterOrByKeysExact($request, $modelQuery, $configArray['filterOrKeysExact']);
@@ -67,6 +68,7 @@ trait CommonCRUD
             'eagerLoads' => $this->getDefault($config, 'eagerLoads', []),
             'filterDate' => $this->getDefault($config, 'filterDate', []),
             'filterKeys' => $this->getDefault($config, 'filterKeys', []),
+            'filterOnMultipleColumnKeys' => $this->getDefault($config, 'filterOnMultipleColumnKeys', []),
             'filterOrKeys' => $this->getDefault($config, 'filterOrKeys', []),
             'filterKeysIn' => $this->getDefault($config, 'filterKeysIn', []),
             'filterKeysExact' => $this->getDefault($config, 'filterKeysExact', []),
@@ -120,6 +122,12 @@ trait CommonCRUD
     private function filterByKeys(Request $request, & $modelQuery, $filterKeys) {
         foreach ($filterKeys as $item) {
             $this->filterByKey($request, $item, $modelQuery);
+        }
+    }
+
+    private function filterByMultipleColumnKeys(Request $request, & $modelQuery, $filterKeys) {
+        foreach ($filterKeys as $item) {
+            $this->filterByMultipleColumnKey($request, $item, $modelQuery);
         }
     }
 

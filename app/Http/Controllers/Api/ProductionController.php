@@ -8,6 +8,7 @@ use App\Traits\CommonCRUD;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Collection;
 use Spatie\Permission\Models\Role;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Validator;
@@ -210,7 +211,16 @@ class ProductionController extends Controller
     {
         $this->validateSummaryRequest($request);
 
-        $results = $this->getSummaryData($request);
+        $results = $this->getSummaryData($request, groupByUser: false, paginate: true);
+
+        return response()->json($results);
+    }
+
+    public function userSummary(Request $request): JsonResponse
+    {
+        $this->validateSummaryRequest($request);
+
+        $results = $this->getSummaryData($request, groupByUser: true, paginate: true);
 
         return response()->json($results);
     }
@@ -220,7 +230,7 @@ class ProductionController extends Controller
 
         $this->validateSummaryRequest($request);
 
-        $data = $this->getSummaryData($request);
+        $data = $this->getSummaryData($request, groupByUser: false, paginate: false);
 
         if ($data->isEmpty()) {
             return response()->json([
@@ -257,12 +267,52 @@ class ProductionController extends Controller
         return response()->streamDownload($callback, "گزارش-تولید-" . now()->format('Y-m-d') . ".csv", $headers);
     }
 
-    /**
-     * Validate summary request inputs.
-     *
-     * @param Request $request
-     * @throws ValidationException
-     */
+    public function userSummaryExport(Request $request)
+    {
+        $this->validateSummaryRequest($request);
+
+        $data = $this->getSummaryData($request, groupByUser: true, paginate: false);
+
+        if ($data->isEmpty()) {
+            return response()->json([
+                'message' => 'داده‌ای یافت نشد.'
+            ], Response::HTTP_BAD_REQUEST);
+        }
+
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="گزارش-تولید-کاربری-' . now()->format('Y-m-d') . '.csv"',
+            'Content-Encoding' => 'UTF-8'
+        ];
+
+        $callback = function () use ($data) {
+            $file = fopen('php://output', 'w');
+            fprintf($file, "\xEF\xBB\xBF"); // UTF-8 BOM
+
+            fputcsv($file, [
+                'کاربر',
+                'زیر محصول',
+                'رنگ',
+                'جمع دسته',
+                'جمع کل'
+            ], ',', '"');
+
+            foreach ($data as $row) {
+                fputcsv($file, [
+                    ($row->firstname ?? '') . ' ' . ($row->lastname ?? '') . '(' . $row->employee_code ?? '-' . ')',
+                    $row->product_part_name,
+                    $row->color_name ?? 'نامشخص',
+                    $row->total_bunch,
+                    $row->total_petals
+                ], ',', '"');
+            }
+
+            fclose($file);
+        };
+
+        return response()->streamDownload($callback, "گزارش-تولید-کاربری-" . now()->format('Y-m-d') . ".csv", $headers);
+    }
+
     private function validateSummaryRequest(Request $request): void
     {
         $request->validate([
@@ -294,22 +344,24 @@ class ProductionController extends Controller
         }
     }
 
-    /**
-     * Get summary data without validation.
-     *
-     * @param Request $request
-     * @return \Illuminate\Support\Collection
-     */
-    private function getSummaryData(Request $request)
+    private function getSummaryData(Request $request, bool $groupByUser = false, bool $paginate = false)
     {
-        return Production::query()->summaryQuery(
+        $query = Production::query()->summaryQuery(
             roleName: $request->input('role'),
             dateFrom: $request->input('production_date_from'),
             dateTo: $request->input('production_date_to'),
             productPartId: $request->input('product_part_id'),
             colorId: $request->input('color_id'),
             userId: $request->input('user_id'),
-            fabricId: $request->input('fabric_id')
-        )->get();
+            fabricId: $request->input('fabric_id'),
+            groupByUser: $groupByUser
+        );
+
+        if ($paginate) {
+            $perPage = $request->input('per_page', 15);
+            return $query->paginate($perPage);
+        }
+
+        return $query->get();
     }
 }

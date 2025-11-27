@@ -78,6 +78,22 @@ trait Filter
         }
     }
 
+    private function filterByMultipleColumnKey(Request $request, $filterData, & $modelQuery) {
+        $columns = $filterData['columns'];
+        $requestKey = $filterData['requestKey'];
+        $name = $request->get($requestKey);
+
+        if (!isset($name) || strlen($name) == 0) {
+            return;
+        }
+
+        $modelQuery->where(function ($query) use ($name, $columns) {
+            foreach ($columns as $column) {
+                $query->orWhere($column, 'like', '%' . $name . '%');
+            }
+        });
+    }
+
     private function filterOrByKey($request, $key, & $modelQuery) {
         $keyValue = trim($request->get($key));
         if (strlen($keyValue) > 0) {

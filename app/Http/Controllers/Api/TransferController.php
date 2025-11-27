@@ -40,6 +40,7 @@ class TransferController extends Controller
             'filterOrKeysExact' => [
                 'from_user_id',
                 'to_user_id',
+                'creator_user_id',
             ],
             'filterDates' => ['transfer_date'],
             'filterRelationKeys'=> [
@@ -59,6 +60,7 @@ class TransferController extends Controller
                 'toUser',
                 'fromInventory',
                 'toInventory',
+                'creator',
                 'items.item'
             ]
         ];
@@ -106,66 +108,7 @@ class TransferController extends Controller
             'items.*.notes'       => 'nullable|string'
         ]);
 
-        // --- ولیدیشن آیتم‌ها ---
-        foreach ($request->items as $index => $item) {
-            $itemType = $item['item_type'] ?? null;
-            $itemId = $item['item_id'] ?? null;
-            $colorId = $item['color_id'] ?? null;
-            $rowCounter = $index + 1;
-
-            if (!class_exists($itemType)) {
-                return response()->json([
-                    'errors' => [
-                        'validate_outgoing' => "نوع آیتم نامعتبر در ردیف {$rowCounter}: {$itemType}"
-                    ]
-                ], 422);
-            }
-
-            if (!is_subclass_of($itemType, \Illuminate\Database\Eloquent\Model::class)) {
-                return response()->json([
-                    'errors' => [
-                        'validate_outgoing' => "مدل ارث‌برده از Eloquent نیست در ردیف {$rowCounter}: {$itemType}"
-                    ]
-                ], 422);
-            }
-
-            $exists = $itemType::where('id', $itemId)->exists();
-            if (!$exists) {
-                return response()->json([
-                    'errors' => [
-                        'validate_outgoing' => "آیتم با شناسه {$itemId} در مدل {$itemType} یافت نشد (ردیف {$rowCounter})."
-                    ]
-                ], 422);
-            }
-
-            if ($itemType === Product::class && !$colorId) {
-                return response()->json([
-                    'errors' => [
-                        'validate_outgoing' => "برای محصول در ردیف {$rowCounter}، رنگ الزامی است."
-                    ]
-                ], 422);
-            }
-
-            if (
-                ($request->from_inventory_type || $request->from_user_id) &&
-                $itemType === ProductPart::class &&
-                !$colorId
-            ) {
-                return response()->json([
-                    'errors' => [
-                        'validate_outgoing' => "برای زیر محصول در ردیف {$rowCounter}، رنگ الزامی است."
-                    ]
-                ], 422);
-            }
-
-            if ($colorId && !Color::find($colorId)) {
-                return response()->json([
-                    'errors' => [
-                        'validate_outgoing' => "رنگ با شناسه {$colorId} یافت نشد (ردیف {$rowCounter})."
-                    ]
-                ], 422);
-            }
-        }
+        $this->validateTransferItems($request);
 
         try {
             // --- اجرای کامل در یک تراکنش ---
@@ -214,8 +157,7 @@ class TransferController extends Controller
                     throw ValidationException::withMessages([
                         'to_user_id' => ['برای انبار مقصد، کاربر گیرنده الزامی است.']
                     ]);
-                }
-                if ($request->to_inventory_type || $request->to_user_id) {
+                } else if ($request->to_inventory_type || $request->to_user_id) {
                     $toInventory = DB::transaction(function () use ($request, $validTypes) {
                         if ($request->to_inventory_type && in_array($request->to_inventory_type, $validTypes)) {
                             if ($request->to_inventory_type !== 'assembler') {
@@ -252,7 +194,6 @@ class TransferController extends Controller
                     });
                 }
 
-                // --- ولیدیشن موجودی فقط اگر مبدأ انباری باشه ---
                 if ($fromInventory) {
 
                     if ($fromInventory->is_locked) {
@@ -263,29 +204,9 @@ class TransferController extends Controller
                         ]);
                     }
 
-                    // گروه‌بندی آیتم‌ها بر اساس item_id, item_type, color_id
-                    $groupedItems = collect($request->items)->groupBy(function ($item) {
-                        return $item['item_id'] . '-' . $item['item_type'] . '-' . ($item['color_id'] ?? 'null');
-                    });
-
-                    foreach ($groupedItems as $group) {
-                        $totalQuantity = $group->sum('quantity');
-                        $firstItem = $group->first();
-
-                        $strategy = StrategyResolver::resolve($firstItem);
-
-                        $inventoryItemData = $firstItem;
-                        $inventoryItemData['quantity'] = $totalQuantity;
-
-                        $validationError = $strategy->validateOutgoing($fromInventory->id, $firstItem);
-
-                        if (!empty($validationError)) {
-                            throw ValidationException::withMessages($validationError);
-                        }
-                    }
+                    $this->validateInventoryAvailability($request, $fromInventory);
                 }
 
-                // --- ولیدیشن موجودی فقط اگر مبدأ انباری باشه ---
                 if ($toInventory) {
                     if ($toInventory->is_locked) {
                         throw ValidationException::withMessages([
@@ -302,6 +223,7 @@ class TransferController extends Controller
                     'to_user_id' => $request->to_user_id,
                     'from_inventory_id' => $fromInventory ? $fromInventory->id : null,
                     'to_inventory_id' => $toInventory ? $toInventory->id : null,
+                    'creator_user_id' => auth()->id(),
                     'transfer_date' => $request->transfer_date,
                     'status' => TransferStatusType::Pending,
                     'description' => $request->description,
@@ -443,18 +365,83 @@ class TransferController extends Controller
      */
     public function update(Request $request, Transfer $transfer): JsonResponse
     {
+        // --- چک کردن وضعیت حواله ---
+        if ($transfer->status !== TransferStatusType::Pending) {
+            return response()->json([
+                'errors' => [
+                    'transfer_status' => 'فقط حواله‌های در انتظار تأیید قابل ویرایش هستند.'
+                ]
+            ], 422);
+        }
+
+        // --- چک کردن اجازه دسترسی ---
+        $currentUser = $request->user();
+        if (
+            $transfer->from_user_id !== $currentUser->id &&
+            $transfer->to_user_id !== $currentUser->id &&
+            $transfer->creator_user_id !== $currentUser->id
+        ) {
+            return response()->json([
+                'errors' => [
+                    'access_denied' => 'فقط فرستنده یا گیرنده یا سازنده این حواله می‌تواند آن را ویرایش کند.'
+                ]
+            ], 403);
+        }
+
+        // --- ولیدیشن داده‌های قابل ویرایش ---
         $request->validate([
-            'from_user_id' => 'nullable|exists:users,id',
-            'to_user_id' => 'nullable|exists:users,id',
-            'from_inventory_id' => 'nullable|exists:user_inventories,id',
-            'to_inventory_id' => 'nullable|exists:user_inventories,id',
             'transfer_date' => 'sometimes|required|date_format:Y-m-d',
-            'description' => 'sometimes|nullable|string'
+            'description' => 'sometimes|nullable|string',
+            'items' => 'sometimes|required|array|min:1',
+            'items.*.item_type' => [
+                'sometimes',
+                'required',
+                'string',
+                Rule::in([
+                    ProductPart::class,
+                    RawMaterial::class,
+                    Product::class
+                ])
+            ],
+            'items.*.item_id' => 'sometimes|required|integer',
+            'items.*.color_id' => 'sometimes|nullable|exists:colors,id',
+            'items.*.quantity' => 'sometimes|required|numeric|min:0.01',
+            'items.*.notes' => 'sometimes|nullable|string'
         ]);
 
-        $transfer->update($request->all());
+        // --- ولیدیشن آیتم‌ها ---
+        if ($request->filled('items')) {
+            $this->validateTransferItems($request);
+        }
 
-        return $this->show($transfer->id);
+        try {
+            $updatedTransfer = DB::transaction(function () use ($request, $transfer) {
+                // --- آپدیت اطلاعات اصلی ---
+                $transfer->update($request->only(['transfer_date', 'description']));
+
+                // --- اگر items داده شده بود، آیتم‌های قبلی حذف و جدید ایجاد میشه ---
+                if ($request->filled('items')) {
+                    // حذف آیتم‌های قبلی
+                    $transfer->items()->delete();
+
+                    // ایجاد آیتم‌های جدید
+                    foreach ($request->items as $item) {
+                        $transfer->items()->create($item);
+                    }
+                }
+
+                return $transfer;
+            });
+
+            return $this->show($updatedTransfer->id);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'خطا در ویرایش حواله',
+                'errors' => [
+                    $e->getMessage()
+                ]
+            ], 422);
+        }
     }
 
     /**
@@ -482,6 +469,91 @@ class TransferController extends Controller
 
             return response()->json(null, 204);
         });
+    }
+
+    /**
+     * Validate transfer items.
+     *
+     * @param Request $request
+     * @param array $validTypes
+     * @throws ValidationException
+     */
+    private function validateTransferItems(Request $request): void
+    {
+        foreach ($request->items as $index => $item) {
+            $itemType = $item['item_type'] ?? null;
+            $itemId = $item['item_id'] ?? null;
+            $colorId = $item['color_id'] ?? null;
+            $rowCounter = $index + 1;
+
+            if (!class_exists($itemType)) {
+                throw ValidationException::withMessages([
+                    'validate_outgoing' => ["نوع آیتم نامعتبر در ردیف {$rowCounter}: {$itemType}"]
+                ]);
+            }
+
+            if (!is_subclass_of($itemType, \Illuminate\Database\Eloquent\Model::class)) {
+                throw ValidationException::withMessages([
+                    'validate_outgoing' => ["مدل ارث‌برده از Eloquent نیست در ردیف {$rowCounter}: {$itemType}"]
+                ]);
+            }
+
+            $exists = $itemType::where('id', $itemId)->exists();
+            if (!$exists) {
+                throw ValidationException::withMessages([
+                    'validate_outgoing' => ["آیتم با شناسه {$itemId} در مدل {$itemType} یافت نشد (ردیف {$rowCounter})."]
+                ]);
+            }
+
+            if ($itemType === Product::class && !$colorId) {
+                throw ValidationException::withMessages([
+                    'validate_outgoing' => ["برای محصول در ردیف {$rowCounter}، رنگ الزامی است."]
+                ]);
+            }
+
+            if (
+                ($request->from_inventory_type || $request->from_user_id) &&
+                $itemType === ProductPart::class &&
+                !$colorId
+            ) {
+                throw ValidationException::withMessages([
+                    'validate_outgoing' => ["برای زیر محصول در ردیف {$rowCounter}، رنگ الزامی است."]
+                ]);
+            }
+
+            if ($colorId && !Color::find($colorId)) {
+                throw ValidationException::withMessages([
+                    'validate_outgoing' => ["رنگ با شناسه {$colorId} یافت نشد (ردیف {$rowCounter})."]
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Validate inventory availability for transfer items.
+     *
+     * @param Request $request
+     * @param Inventory $fromInventory
+     * @throws ValidationException
+     */
+    private function validateInventoryAvailability(Request $request, Inventory $fromInventory): void
+    {
+        // گروه‌بندی آیتم‌ها بر اساس item_id, item_type, color_id
+        $groupedItems = collect($request->items)->groupBy(function ($item) {
+            return $item['item_id'] . '-' . $item['item_type'] . '-' . ($item['color_id'] ?? 'null');
+        });
+
+        foreach ($groupedItems as $group) {
+            $firstItem = $group->first();
+
+            $strategy = StrategyResolver::resolve($firstItem);
+
+            $validationError = $strategy->validateOutgoing($fromInventory->id, $firstItem);
+
+            if (!empty($validationError)) {
+                throw ValidationException::withMessages($validationError);
+            }
+        }
     }
 
     private function validateReverseApprovedTransfer (Transfer $transfer): array|bool {

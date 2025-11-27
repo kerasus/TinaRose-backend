@@ -12,6 +12,7 @@ class Transfer extends Model
         'to_user_id',
         'from_inventory_id',
         'to_inventory_id',
+        'creator_user_id',
         'transfer_date',
         'status',
         'description',
@@ -32,7 +33,10 @@ class Transfer extends Model
         'rejected_at' => 'datetime'
     ];
 
-    protected $appends = ['status_label'];
+    protected $appends = [
+        'status_label',
+        'formatted_transfer_date'
+    ];
 
     public function fromUser()
     {
@@ -54,6 +58,11 @@ class Transfer extends Model
         return $this->belongsTo(Inventory::class, 'to_inventory_id');
     }
 
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'creator_user_id');
+    }
+
     public function items()
     {
         return $this->hasMany(TransferItem::class);
@@ -62,5 +71,10 @@ class Transfer extends Model
     public function getStatusLabelAttribute(): string
     {
         return $this->status?->label() ?? 'نا مشخص';
+    }
+
+    public function getFormattedTransferDateAttribute(): string
+    {
+        return $this->transfer_date?->format('Y-m-d') ?? '';
     }
 }

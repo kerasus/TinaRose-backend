@@ -17,6 +17,7 @@ return new class extends Migration
             $table->unsignedBigInteger('to_user_id')->nullable();
             $table->unsignedBigInteger('from_inventory_id')->nullable();
             $table->unsignedBigInteger('to_inventory_id')->nullable();
+            $table->unsignedBigInteger('creator_user_id')->nullable();
             $table->date('transfer_date');
             $table->enum('status', ['pending', 'approved', 'rejected'])->default('pending');
             $table->text('description')->nullable();
@@ -29,6 +30,7 @@ return new class extends Migration
             $table->foreign('to_user_id')->references('id')->on('users')->onDelete('set null');
             $table->foreign('from_inventory_id')->references('id')->on('user_inventories')->onDelete('set null');
             $table->foreign('to_inventory_id')->references('id')->on('user_inventories')->onDelete('set null');
+            $table->foreign('creator_user_id')->references('id')->on('users')->onDelete('set null');
         });
     }
 

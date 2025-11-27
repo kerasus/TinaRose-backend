@@ -44,20 +44,44 @@ class Production extends Model
                                       $productPartId = null,
                                       $colorId = null,
                                       $userId = null,
-                                      $fabricId = null)
+                                      $fabricId = null,
+                                      $groupByUser = false)
     {
         $query->join('product_parts', 'productions.product_part_id', '=', 'product_parts.id')
             ->leftJoin('colors', 'productions.color_id', '=', 'colors.id')
-            ->leftJoin('fabrics', 'productions.fabric_id', '=', 'fabrics.id')
-            ->select([
-                'product_parts.name as product_part_name',
-                DB::raw('colors.name as color_name'),
-                DB::raw('fabrics.name as fabric_name'),
-                DB::raw('SUM(productions.bunch_count) as total_bunch'),
-                DB::raw('SUM(productions.bunch_count * product_parts.count_per_bunch) as total_petals')
-            ])
-            ->groupBy('product_parts.id', 'product_parts.name', 'colors.id', 'colors.name', 'fabrics.id', 'fabrics.name');
-//            ->groupBy('product_parts.id', 'product_parts.name', 'colors.id', 'colors.name');
+            ->leftJoin('fabrics', 'productions.fabric_id', '=', 'fabrics.id');
+
+        if ($groupByUser) {
+            $query->join('users', 'productions.user_id', '=', 'users.id');
+        }
+
+        $selectFields = [
+            'product_parts.name as product_part_name',
+            DB::raw('colors.name as color_name'),
+            DB::raw('fabrics.name as fabric_name'),
+            DB::raw('SUM(productions.bunch_count) as total_bunch'),
+            DB::raw('SUM(productions.bunch_count * product_parts.count_per_bunch) as total_petals')
+        ];
+
+        if ($groupByUser) {
+            $selectFields = array_merge([
+                'users.id as user_id',
+                'users.employee_code',
+                'users.firstname',
+                'users.lastname',
+                'users.username'
+            ], $selectFields);
+        }
+
+        $query->select($selectFields);
+
+        $groupByFields = ['product_parts.id', 'product_parts.name', 'colors.id', 'colors.name', 'fabrics.id', 'fabrics.name'];
+
+        if ($groupByUser) {
+            $groupByFields = array_merge(['users.id', 'users.employee_code', 'users.firstname', 'users.lastname', 'users.username'], $groupByFields);
+        }
+
+        $query->groupBy($groupByFields);
 
         if ($dateFrom && $dateTo) {
             $query->whereBetween('productions.production_date', [$dateFrom, $dateTo]);
@@ -88,6 +112,7 @@ class Production extends Model
         if ($fabricId) {
             $query->where('productions.fabric_id', $fabricId);
         }
+
 
         return $query;
     }
