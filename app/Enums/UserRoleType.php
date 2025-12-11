@@ -4,15 +4,16 @@ namespace App\Enums;
 
 enum UserRoleType: string
 {
-    case Customer = 'Customer';
-    case MiddleWorker = 'MiddleWorker';
-    case WarehouseKeeper = 'WarehouseKeeper';
-    case Assembler = 'Assembler';
-    case MoldingWorker = 'MoldingWorker';
-    case ColoringWorker = 'ColoringWorker';
-    case FabricCutter = 'FabricCutter';
-    case Accountant = 'Accountant';
     case Manager = 'Manager';
+    case Accountant = 'Accountant';
+    case ProductManager = 'ProductManager';
+    case WarehouseKeeper = 'WarehouseKeeper';
+    case MiddleWorker = 'MiddleWorker';
+    case Assembler = 'Assembler';
+    case FabricCutter = 'FabricCutter';
+    case ColoringWorker = 'ColoringWorker';
+    case MoldingWorker = 'MoldingWorker';
+    case Customer = 'Customer';
 
     /**
      * Get the label for the type.
@@ -29,6 +30,7 @@ enum UserRoleType: string
             self::FabricCutter => 'برش کار',
             self::Accountant => 'حسابدار',
             self::Manager => 'مدیر',
+            self::ProductManager => 'مدیر محصول',
         };
     }
 
