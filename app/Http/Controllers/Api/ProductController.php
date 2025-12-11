@@ -144,7 +144,12 @@ class ProductController extends Controller
     public function updateRequirement(Request $request, Product $product, ProductRequirement $requirement): JsonResponse
     {
         if ($requirement->product_id !== $product->id) {
-            return response()->json(['error' => 'این نیازمندی متعلق به این محصول نیست.'], 403);
+            return response()->json([
+                'message' => 'خطا',
+                'errors' => [
+                    'product_id' => 'این نیازمندی متعلق به این محصول نیست.'
+                ]
+            ], 403);
         }
 
         $request->validate([
@@ -169,7 +174,12 @@ class ProductController extends Controller
     public function removeRequirement(Product $product, ProductRequirement $requirement): JsonResponse
     {
         if ($requirement->product_id !== $product->id) {
-            return response()->json(['error' => 'این نیازمندی متعلق به این محصول نیست.'], 403);
+            return response()->json([
+                'message' => 'خطا',
+                'errors' => [
+                    'product_id' => 'این نیازمندی متعلق به این محصول نیست.'
+                ]
+            ], 403);
         }
 
         $requirement->delete();

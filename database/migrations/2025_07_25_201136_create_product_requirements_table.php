@@ -20,6 +20,7 @@ return new class extends Migration
             $table->string('unit'); // مثل 'don', 'meter'
 
             $table->foreign('product_id')->references('id')->on('products')->onDelete('cascade');
+            $table->unique(['product_id', 'required_item_id', 'required_item_type'], 'product_requirement_unique');
             $table->timestamps();
         });
     }
