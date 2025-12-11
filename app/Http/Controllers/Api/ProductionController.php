@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Traits\Filter;
 use App\Models\Production;
 use App\Traits\CommonCRUD;
+use App\Enums\UserRoleType;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -45,8 +46,14 @@ class ProductionController extends Controller
                 'color',
                 'fabric',
                 'product',
+                'approver',
                 'productPart',
-            ]
+            ],
+            'scopes'=> [
+                'approved',
+                'unapproved',
+                'approvedBy'
+            ],
         ];
 
         $data = $this->commonIndex($request, Production::class, $config);
@@ -207,6 +214,51 @@ class ProductionController extends Controller
     public function destroy(Production $production): JsonResponse
     {
         return $this->commonDestroy($production);
+    }
+
+    /**
+     * Approve a production record.
+     *
+     * @param Request $request
+     * @param Production $production
+     * @return JsonResponse
+     */
+    public function approve(Request $request, Production $production): JsonResponse
+    {
+        $user = $request->user();
+
+        if (!$user->hasAnyRole([
+            UserRoleType::Manager,
+            UserRoleType::Accountant,
+            UserRoleType::MiddleWorker
+        ])) {
+            return response()->json([
+                'message' => 'خطا در تایید تولید',
+                'errors' => [
+                    'permission' => 'شما اجازه تأیید تولیدات را ندارید.'
+                ]
+            ], 403);
+        }
+
+        // اگر قبلاً تأیید شده بود
+        if ($production->approved_at) {
+            return response()->json([
+                'message' => 'خطا در تایید تولید',
+                'errors' => [
+                    'duplicate' => 'این تولید قبلاً تأیید شده است.'
+                ]
+            ], 422);
+        }
+
+        $production->update([
+            'approved_by' => $user->id,
+            'approved_at' => now()
+        ]);
+
+        return response()->json([
+            'message' => 'تولید با موفقیت تأیید شد.',
+//            'production' => $production->load('approver:id,firstname,lastname')
+        ]);
     }
 
     public function summary(Request $request): JsonResponse

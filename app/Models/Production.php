@@ -8,8 +8,21 @@ use Illuminate\Database\Eloquent\Model;
 class Production extends Model
 {
     protected $fillable = [
-        'user_id', 'product_part_id', 'fabric_id', 'color_id', 'product_id',
-        'production_date', 'bunch_count', 'description'
+        'user_id',
+        'product_part_id',
+        'fabric_id',
+        'color_id',
+        'product_id',
+        'approved_by',
+        'approved_at',
+        'production_date',
+        'bunch_count',
+        'description'
+    ];
+
+    protected $casts = [
+        'production_date' => 'date',
+        'approved_at' => 'datetime'
     ];
 
     public function user()
@@ -35,6 +48,29 @@ class Production extends Model
     public function color()
     {
         return $this->belongsTo(Color::class);
+    }
+
+    public function approver()
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    // ==============================
+    // Scopes
+    // ==============================
+    public function scopeUnapproved($query)
+    {
+        return $query->whereNull('approved_at');
+    }
+
+    public function scopeApproved($query)
+    {
+        return $query->whereNotNull('approved_at');
+    }
+
+    public function scopeApprovedBy($query, int $userId)
+    {
+        return $query->where('approved_by', $userId);
     }
 
     public function scopeSummaryQuery($query,

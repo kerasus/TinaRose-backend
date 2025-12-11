@@ -39,7 +39,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('productions/summary', [ProductionController::class, 'summary']);
     Route::get('productions/user-summary', [ProductionController::class, 'userSummary']);
     Route::get('productions/summary-export', [ProductionController::class, 'summaryExport']);
-    Route::get('/productions/user-summary-export', [ProductionController::class, 'userSummaryExport']);
+    Route::get('productions/user-summary-export', [ProductionController::class, 'userSummaryExport']);
+    Route::post('productions/{production}/approve', [ProductionController::class, 'approve']);
 
     Route::apiResource('users', '\\'.UserController::class);
     Route::apiResource('colors', '\\'.ColorController::class);

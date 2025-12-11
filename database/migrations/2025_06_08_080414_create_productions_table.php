@@ -28,6 +28,9 @@ return new class extends Migration
             $table->unsignedBigInteger('color_id')->nullable(); // فقط برای رنگ
             $table->foreign('color_id')->references('id')->on('colors')->onDelete('set null');
 
+            $table->foreign('approved_by')->references('id')->on('users')->onDelete('set null');
+            $table->timestamp('approved_at')->nullable();
+
             $table->date('production_date');
             $table->decimal('bunch_count', 8, 2);
             $table->text('description')->nullable();
