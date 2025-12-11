@@ -109,7 +109,7 @@ class ProductPartController extends Controller
         $request->validate([
             'required_item_type' => 'required|string|in:App\Models\Fabric',
             'required_item_id' => 'required|exists:' . $this->getTableFromItemType($request->required_item_type) . ',id',
-            'quantity' => 'required|numeric|min:0.01',
+            'quantity' => 'required|numeric',
             'unit' => 'required|string|max:50'
         ]);
 
@@ -146,7 +146,7 @@ class ProductPartController extends Controller
         $request->validate([
             'required_item_type' => 'sometimes|required|string|in:App\Models\Fabric',
             'required_item_id' => 'sometimes|required|exists:' . $this->getTableFromItemType($request->required_item_type ?? $requirement->required_item_type) . ',id',
-            'quantity' => 'sometimes|required|numeric|min:0.01',
+            'quantity' => 'sometimes|required|numeric',
             'unit' => 'sometimes|required|string|max:50'
         ]);
 
