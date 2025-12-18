@@ -3,6 +3,7 @@
 namespace App\Services\TransferItemStrategy;
 
 use App\Models\Product;
+use App\Models\ProductPart;
 use App\Models\TransferItem;
 
 class StrategyResolver
@@ -27,6 +28,7 @@ class StrategyResolver
 
         return match($itemType) {
             Product::class => new ProductTransferStrategy(),
+//            ProductPart::class => new ProductPartTransferStrategy(),
 //            ProductPart::class, // merge with default
 //            RawMaterial::class => new DefaultTransferStrategy(), // merge with default
             default => new DefaultTransferStrategy()

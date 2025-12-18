@@ -35,18 +35,6 @@ Route::post('login', [AuthController::class, 'login']);
 // Protected routes (require authentication via Sanctum)
 Route::middleware('auth:sanctum')->group(function () {
 
-    Route::apiResource('users', '\\'.UserController::class);
-    Route::apiResource('colors', '\\'.ColorController::class);
-    Route::apiResource('fabrics', '\\'.FabricController::class);
-    Route::apiResource('products', '\\'.ProductController::class);
-    Route::apiResource('transfers', '\\'.TransferController::class);
-    Route::apiResource('inventories', '\\'.InventoryController::class);
-    Route::apiResource('productions', '\\'.ProductionController::class);
-    Route::apiResource('product-parts', '\\'.ProductPartController::class);
-    Route::apiResource('raw-materials', '\\'.RawMaterialController::class);
-    Route::apiResource('transfer-packages', '\\'.TransferPackageController::class);
-    Route::apiResource('inventory-counts', InventoryCountController::class)->only(['index', 'show', 'destroy']);
-
     Route::post('inventory-counts/start', [InventoryCountController::class, 'start']);
     Route::get('inventory-counts/{id}/items', [InventoryCountController::class, 'getInventoryItemsPaginated']);
     Route::put('inventory-counts/{id}/item', [InventoryCountController::class, 'updateItem']);
@@ -85,4 +73,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('productions/{production}/approve', [ProductionController::class, 'approve']);
 
     Route::post('database/backup', [DatabaseBackupController::class, 'backupDatabase']);
+
+    Route::apiResource('users', '\\'.UserController::class);
+    Route::apiResource('colors', '\\'.ColorController::class);
+    Route::apiResource('fabrics', '\\'.FabricController::class);
+    Route::apiResource('products', '\\'.ProductController::class);
+    Route::apiResource('transfers', '\\'.TransferController::class);
+    Route::apiResource('inventories', '\\'.InventoryController::class);
+    Route::apiResource('productions', '\\'.ProductionController::class);
+    Route::apiResource('product-parts', '\\'.ProductPartController::class);
+    Route::apiResource('raw-materials', '\\'.RawMaterialController::class);
+    Route::apiResource('transfer-packages', '\\'.TransferPackageController::class);
+    Route::apiResource('inventory-counts', InventoryCountController::class)->only(['index', 'show', 'destroy']);
 });
