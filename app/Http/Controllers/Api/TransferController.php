@@ -2,31 +2,27 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Models\User;
-use App\Models\Color;
-use App\Services\Transfer\TransferApprovalService;
-use App\Services\Transfer\TransferCreationService;
-use App\Services\Transfer\TransferDeletionService;
-use App\Services\Transfer\TransferInventoryResolver;
-use App\Services\Transfer\TransferUpdateService;
-use App\Services\Transfer\TransferValidationService;
+use App\Models\Fabric;
 use App\Traits\Filter;
 use App\Models\Product;
 use App\Models\Transfer;
-use App\Models\Inventory;
 use App\Traits\CommonCRUD;
 use App\Models\RawMaterial;
 use App\Models\ProductPart;
 use Illuminate\Http\Request;
 use App\Models\TransferItem;
-use App\Models\InventoryItem;
 use Illuminate\Validation\Rule;
 use App\Enums\TransferStatusType;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
 use Illuminate\Validation\ValidationException;
-use App\Services\TransferItemStrategy\StrategyResolver;
+use App\Services\Transfer\TransferUpdateService;
+use App\Services\Transfer\TransferApprovalService;
+use App\Services\Transfer\TransferCreationService;
+use App\Services\Transfer\TransferDeletionService;
+use App\Services\Transfer\TransferValidationService;
+use App\Services\Transfer\TransferInventoryResolver;
 
 class TransferController extends Controller
 {
@@ -90,12 +86,15 @@ class TransferController extends Controller
                 'fromInventory',
                 'toInventory',
                 'creator',
+                'approvedBy',
+                'rejectedBy',
                 'items.item'
             ]
         ];
 
         return $this->commonIndex($request, Transfer::class, $config);
     }
+
 
     /**
      * Store a newly created resource in storage.
@@ -126,9 +125,10 @@ class TransferController extends Controller
                 'required',
                 'string',
                 Rule::in([
+                    Fabric::class,
+                    Product::class,
                     ProductPart::class,
-                    RawMaterial::class,
-                    Product::class
+                    RawMaterial::class
                 ])
             ],
             'items.*.item_id'     => 'required|integer',
@@ -138,10 +138,14 @@ class TransferController extends Controller
         ]);
 
         try {
-            $this->validationService->validateItems($request->items);
-            $transfer = $this->creationService->create($request->all());
+            $transfer = DB::transaction(function () use ($request) {
+                $this->validationService->validateItems($request->items);
+                return $this->creationService->createByUser($request->all());
+            });
 
             return $this->show($transfer->id);
+        } catch (ValidationException $e) {
+            return response()->json(['errors' => $e->errors()], 422);
         } catch (\Exception $e) {
             // اگر خطا داخل تراکنش بوده باشه
             return response()->json([
@@ -154,57 +158,6 @@ class TransferController extends Controller
     }
 
     /**
-     * Update inventory based on transfer items.
-     * @throws ValidationException
-     */
-    private function updateInventoryOnApproved(Transfer $transfer): void
-    {
-        foreach ($transfer->items as $item) {
-            $strategy = StrategyResolver::resolve($item);
-
-            // From inventory
-            if ($transfer->from_inventory_id) {
-                $fromItem = InventoryItem::firstOrNew(
-                    [
-                        'inventory_id' => $transfer->from_inventory_id,
-                        'item_id' => $item->item_id,
-                        'item_type' => $item->item_type,
-                        'color_id' => $item->color_id,
-                    ], [
-                        'quantity' => 0
-                    ]
-                );
-
-                if (!$fromItem->exists) {
-                    $fromItem->save();
-                }
-
-                $strategy->handleOutgoing($fromItem, $item->quantity);
-            }
-
-            // To inventory
-            if ($transfer->to_inventory_id) {
-                $toItem = InventoryItem::firstOrNew(
-                    [
-                        'inventory_id' => $transfer->to_inventory_id,
-                        'item_id' => $item->item_id,
-                        'item_type' => $item->item_type,
-                        'color_id' => $item->color_id,
-                    ], [
-                        'quantity' => 0
-                    ]
-                );
-
-                if (!$toItem->exists) {
-                    $toItem->save();
-                }
-
-                $strategy->handleIncoming($toItem, $item->quantity);
-            }
-        }
-    }
-
-    /**
      * Display the specified resource.
      *
      * @param int $id
@@ -213,6 +166,8 @@ class TransferController extends Controller
     public function show(int $id): JsonResponse
     {
         $transfer = Transfer::with([
+            'approvedBy:id,firstname,lastname,username',
+            'rejectedBy:id,firstname,lastname,username',
             'fromUser:id,firstname,lastname,username',
             'toUser:id,firstname,lastname,username',
             'fromInventory:id,user_id,name',
@@ -302,45 +257,36 @@ class TransferController extends Controller
      * @param Request $request
      * @param Transfer $transfer
      * @return JsonResponse
+     * @throws ValidationException
      */
     public function approve(Request $request, Transfer $transfer): JsonResponse
     {
-        if ($transfer->status !== TransferStatusType::Pending) {
-            return response()->json([
-                'message' => 'این حواله قبلاً تأیید یا رد شده است.'
-            ], 422);
-        }
-
+        $approver = $request->user();
         // فقط گیرنده می‌تونه تأیید کنه
-        if ($transfer->to_user_id !== auth()->id()) {
+        if ($transfer->to_user_id !== $approver->id) {
             return response()->json([
                 'message' => 'فقط گیرنده این حواله می تواند تأیید کنه.'
             ], 403);
         }
 
-        $transfer->update([
-            'status' => TransferStatusType::Approved,
-            'approved_at' => now()
-        ]);
-
-        // آپدیت انبارها
-        $this->updateInventoryOnApproved($transfer);
+        $updatedTransfer = $this->approvalService->approve($transfer, $approver);
 
         return response()->json([
             'message' => 'حواله با موفقیت تأیید شد.',
-            'transfer' => $transfer
+            'transfer' => $updatedTransfer->load('approvedBy:id,firstname,lastname')
         ]);
     }
 
     public function reject(Request $request, Transfer $transfer): JsonResponse
     {
+        $rejecter = $request->user();
         if ($transfer->status !== TransferStatusType::Pending) {
             return response()->json([
                 'message' => 'این حواله قبلاً تأیید یا رد شده است.'
             ], 422);
         }
 
-        if ($transfer->to_user_id !== auth()->id()) {
+        if ($transfer->to_user_id !== $rejecter->id) {
             return response()->json([
                 'message' => 'فقط گیرنده این حواله می تواند رد کنه.'
             ], 403);
@@ -348,6 +294,7 @@ class TransferController extends Controller
 
         $transfer->update([
             'status' => TransferStatusType::Rejected,
+            'rejecter_id' => $rejecter->id,
             'rejected_at' => now()
         ]);
 

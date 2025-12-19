@@ -20,7 +20,7 @@ class TransferCreationService
         $this->inventoryResolver = $inventoryResolver;
     }
 
-    public function create(array $data): Transfer
+    public function createByUser(array $data): Transfer
     {
         $validTypes = [
             'fabric_cutter',
@@ -60,25 +60,38 @@ class TransferCreationService
             }
         }
 
-        return DB::transaction(function () use ($data, $fromInventory, $toInventory) {
-            $transfer = Transfer::create([
-                'from_user_id' => $data['from_user_id'] ?? null,
-                'to_user_id' => $data['to_user_id'] ?? null,
-                'from_inventory_id' => $fromInventory?->id,
-                'to_inventory_id' => $toInventory?->id,
-                'creator_user_id' => auth()->id(),
-                'transfer_date' => $data['transfer_date'],
-                'status' => TransferStatusType::Pending,
-                'description' => $data['description'] ?? null,
-            ]);
+        $formattedData = [
+            'from_user_id' => $data['from_user_id'] ?? null,
+            'to_user_id' => $data['to_user_id'] ?? null,
+            'from_inventory_id' => $fromInventory?->id,
+            'to_inventory_id' => $toInventory?->id,
+            'transfer_date' => $data['transfer_date'],
+            'description' => $data['description'] ?? null,
+            'items' => $data['items'] ?? []
+        ];
 
-            if (isset($data['items'])) {
-                foreach ($data['items'] as $item) {
-                    $transfer->items()->create($item);
-                }
+        return $this->create($formattedData);
+    }
+
+    public function create(array $data): Transfer
+    {
+        $transfer = Transfer::create([
+            'from_user_id' => $data['from_user_id'] ?? null,
+            'to_user_id' => $data['to_user_id'] ?? null,
+            'from_inventory_id' => $data['from_inventory_id'],
+            'to_inventory_id' => $data['to_inventory_id'],
+            'creator_user_id' => auth()->id(),
+            'transfer_date' => $data['transfer_date'],
+            'status' => TransferStatusType::Pending,
+            'description' => $data['description'] ?? null,
+        ]);
+
+        if (isset($data['items'])) {
+            foreach ($data['items'] as $item) {
+                $transfer->items()->create($item);
             }
+        }
 
-            return $transfer;
-        });
+        return $transfer;
     }
 }

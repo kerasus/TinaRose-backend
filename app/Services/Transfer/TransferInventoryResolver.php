@@ -2,12 +2,15 @@
 
 namespace App\Services\Transfer;
 
-use App\Models\Inventory;
 use App\Models\User;
+use App\Models\Inventory;
 use Illuminate\Validation\ValidationException;
 
 class TransferInventoryResolver
 {
+    /**
+     * @throws ValidationException
+     */
     public function resolveFromInventory(array $data, array $validTypes): ?Inventory
     {
         if ($data['from_inventory_type'] || $data['from_user_id']) {
@@ -46,6 +49,9 @@ class TransferInventoryResolver
         return null;
     }
 
+    /**
+     * @throws ValidationException
+     */
     public function resolveToInventory(array $data, array $validTypes): ?Inventory
     {
         if ($data['to_inventory_type'] && !$data['to_user_id']) {

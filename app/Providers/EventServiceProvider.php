@@ -21,10 +21,6 @@ class EventServiceProvider extends ServiceProvider
         ],
     ];
 
-    protected $observers = [
-//        Production::class => [ProductionObserver::class],
-    ];
-
     /**
      * Register any events for your application.
      */

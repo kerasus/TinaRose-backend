@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\InventoryType;
 use App\Enums\TransferStatusType;
 use Illuminate\Database\Eloquent\Model;
 
@@ -12,6 +13,7 @@ class Inventory extends Model
     protected $appends = [
         'has_open_inventory_count',
         'has_pending_transfers',
+        'type_label',
         'is_locked'
     ];
 
@@ -48,6 +50,15 @@ class Inventory extends Model
     // ==============================
     // Attributes
     // ==============================
+
+    public function getTypeLabelAttribute(): string
+    {
+        if ($this->type) {
+            $inventoryType = InventoryType::tryFrom($this->type);
+            return $inventoryType ? $inventoryType->label() : 'نامشخص';
+        }
+        return 'انبار شخصی';
+    }
 
     /**
      * Check if this inventory has an open (unlocked) inventory count.

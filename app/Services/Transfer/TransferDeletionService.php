@@ -4,25 +4,28 @@ namespace App\Services\Transfer;
 
 use App\Models\Transfer;
 use App\Models\Inventory;
+use App\Models\InventoryItem;
 use App\Enums\TransferStatusType;
-use App\Services\TransferItemStrategy\StrategyResolver;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use App\Services\TransferItemStrategy\StrategyResolver;
 
 class TransferDeletionService
 {
+    /**
+     * @throws ValidationException
+     */
     public function delete(Transfer $transfer): void
     {
         if ($transfer->status === TransferStatusType::Approved) {
             $this->validateReverseApprovedTransfer($transfer);
         }
 
-        DB::transaction(function () use ($transfer) {
-            $this->updateInventoryOnDelete($transfer);
+        $this->updateInventoryOnDelete($transfer);
 
-            $transfer->items()->delete();
-            $transfer->delete();
-        });
+        $transfer->items()->delete();
+        $transfer->delete();
+//        DB::transaction(function () use ($transfer) {
+//        });
     }
 
     /**
@@ -84,10 +87,10 @@ class TransferDeletionService
         }
 
         foreach ($transfer->items as $item) {
-            $strategy = \App\Services\TransferItemStrategy\StrategyResolver::resolve($item);
+            $strategy = StrategyResolver::resolve($item);
 
             if ($transfer->from_inventory_id) {
-                $fromItem = \App\Models\InventoryItem::firstOrCreate(
+                $fromItem = InventoryItem::firstOrCreate(
                     [
                         'inventory_id' => $transfer->from_inventory_id,
                         'item_id' => $item->item_id,
@@ -100,7 +103,7 @@ class TransferDeletionService
             }
 
             if ($transfer->to_inventory_id) {
-                $toItem = \App\Models\InventoryItem::firstOrCreate(
+                $toItem = InventoryItem::firstOrCreate(
                     [
                         'inventory_id' => $transfer->to_inventory_id,
                         'item_id' => $item->item_id,

@@ -5,13 +5,15 @@ namespace App\Services\Transfer;
 use App\Models\Color;
 use App\Models\Product;
 use App\Models\ProductPart;
-use App\Models\RawMaterial;
-use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\ValidationException;
+use App\Services\TransferItemStrategy\StrategyResolver;
 
 class TransferValidationService
 {
+    /**
+     * @throws ValidationException
+     */
     public function validateItems(array $items): void
     {
         foreach ($items as $index => $item) {
@@ -26,7 +28,7 @@ class TransferValidationService
                 ]);
             }
 
-            if (!is_subclass_of($itemType, \Illuminate\Database\Eloquent\Model::class)) {
+            if (!is_subclass_of($itemType, Model::class)) {
                 throw ValidationException::withMessages([
                     'validate_outgoing' => ["مدل ارث‌برده از Eloquent نیست در ردیف {$rowCounter}: {$itemType}"]
                 ]);
@@ -64,6 +66,9 @@ class TransferValidationService
         }
     }
 
+    /**
+     * @throws ValidationException
+     */
     public function validateInventoryAccess($inventory): void
     {
         if ($inventory && $inventory->is_locked) {
@@ -75,6 +80,9 @@ class TransferValidationService
         }
     }
 
+    /**
+     * @throws ValidationException
+     */
     public function validateInventoryAvailability(array $items, $fromInventory): void
     {
         $groupedItems = collect($items)->groupBy(function ($item) {
@@ -82,10 +90,9 @@ class TransferValidationService
         });
 
         foreach ($groupedItems as $group) {
-            $totalQuantity = $group->sum('quantity');
             $firstItem = $group->first();
 
-            $strategy = \App\Services\TransferItemStrategy\StrategyResolver::resolve($firstItem);
+            $strategy = StrategyResolver::resolve($firstItem);
 
             $validationError = $strategy->validateOutgoing($fromInventory->id, $firstItem);
 

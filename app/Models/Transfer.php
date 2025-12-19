@@ -16,7 +16,9 @@ class Transfer extends Model
         'transfer_date',
         'status',
         'description',
+        'approver_id',
         'approved_at',
+        'rejecter_id',
         'rejected_at'
     ];
 
@@ -28,6 +30,8 @@ class Transfer extends Model
         'to_user_id' => 'integer',
         'from_user_id' => 'integer',
         'transfer_date' => 'date',
+        'approver_id' => 'integer',
+        'rejecter_id' => 'integer',
         'status' => TransferStatusType::class,
         'approved_at' => 'datetime',
         'rejected_at' => 'datetime'
@@ -66,6 +70,16 @@ class Transfer extends Model
     public function items()
     {
         return $this->hasMany(TransferItem::class);
+    }
+
+    public function approvedBy()
+    {
+        return $this->belongsTo(User::class, 'approver_id');
+    }
+
+    public function rejectedBy()
+    {
+        return $this->belongsTo(User::class, 'rejecter_id');
     }
 
     public function getStatusLabelAttribute(): string

@@ -9,6 +9,7 @@ use App\Enums\UserRoleType;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 use App\Http\Controllers\Controller;
 use Maatwebsite\Excel\Facades\Excel;
@@ -17,10 +18,19 @@ use Illuminate\Support\Facades\Validator;
 use App\Exports\UserProductionSummaryExport;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
+use App\Services\Production\ProductionApproveService;
 
 class ProductionController extends Controller
 {
     use Filter, CommonCRUD;
+
+    private ProductionApproveService $productionApproveService;
+
+    public function __construct(
+        ProductionApproveService $productionApproveService,
+    ) {
+        $this->productionApproveService = $productionApproveService;
+    }
 
     /**
      * Display a listing of the resource.
@@ -121,18 +131,6 @@ class ProductionController extends Controller
 
         $validated = Validator::make($request->all(), $baseRules)->validate();
 
-//        $validated = Validator::make($request->all(), [
-//            'user_id' => 'required|exists:users,id',
-//            'product_part_id' => 'required|exists:product_parts,id',
-//            'production_date' => [
-//                'required',
-//                'date_format:Y-m-d',
-//                $isWorker ? 'before_or_equal:' . Carbon::now()->format('Y-m-d') : ''
-//            ],
-//            'bunch_count' => 'required|numeric|min:0.01',
-//            'description' => 'nullable|string'
-//        ])->validate();
-
         if ($roleNames->contains('FabricCutter')) {
             $request->validate([
                 'fabric_id' => 'required|exists:fabrics,id'
@@ -225,9 +223,9 @@ class ProductionController extends Controller
      */
     public function approve(Request $request, Production $production): JsonResponse
     {
-        $user = $request->user();
+        $approver = $request->user();
 
-        if (!$user->hasAnyRole([
+        if (!$approver->hasAnyRole([
             UserRoleType::Manager,
             UserRoleType::Accountant,
             UserRoleType::MiddleWorker
@@ -240,25 +238,25 @@ class ProductionController extends Controller
             ], 403);
         }
 
-        // اگر قبلاً تأیید شده بود
-        if ($production->approved_at) {
+        try {
+            DB::transaction(function () use ($production, $approver) {
+                $this->productionApproveService->approve($production, $approver);
+            });
+
+            return response()->json([
+                'message' => 'تولید با موفقیت تأیید شد.',
+//            'production' => $production->load('approver:id,firstname,lastname')
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json(['errors' => $e->errors()], 422);
+        } catch (\Throwable $e) {
             return response()->json([
                 'message' => 'خطا در تایید تولید',
                 'errors' => [
-                    'duplicate' => 'این تولید قبلاً تأیید شده است.'
+                    $e->getMessage()
                 ]
             ], 422);
         }
-
-        $production->update([
-            'approved_by' => $user->id,
-            'approved_at' => now()
-        ]);
-
-        return response()->json([
-            'message' => 'تولید با موفقیت تأیید شد.',
-//            'production' => $production->load('approver:id,firstname,lastname')
-        ]);
     }
 
     public function summary(Request $request): JsonResponse
@@ -296,42 +294,6 @@ class ProductionController extends Controller
             new ProductionSummaryExport($data),
             "گزارش-تولید-" . now()->format('Y-m-d') . ".xlsx"
         );
-
-//        $headers = [
-//            'Content-Type' => 'text/csv',
-//            'Content-Disposition' => 'attachment; filename="گزارش-تولید-' . now()->format('Y-m-d') . '.csv"',
-//            'Content-Encoding: UTF-8'
-//        ];
-//
-//        $callback = function () use ($data) {
-//            $file = fopen('php://output', 'w');
-//
-//            // تنظیم UTF-8 برای CSV
-//            fprintf($file, "\xEF\xBB\xBF");
-//
-//            // هدر جدول
-//            fputcsv($file, [
-//                'زیر محصول',
-//                'رنگ',
-//                'پارچه',
-//                'جمع دسته',
-//                'جمع کل گلبرگ'
-//            ]);
-//
-//            foreach ($data as $row) {
-//                fputcsv($file, [
-//                    $row->product_part_name,
-//                    $row->color_name ?? 'نامشخص',
-//                    $row->fabric_name ?? 'نامشخص',
-//                    $row->total_bunch,
-//                    $row->total_petals,
-//                ]);
-//            }
-//
-//            fclose($file);
-//        };
-//
-//        return response()->streamDownload($callback, "گزارش-تولید-" . now()->format('Y-m-d') . ".csv", $headers);
     }
 
     public function userSummaryExport(Request $request)
@@ -350,41 +312,6 @@ class ProductionController extends Controller
             new UserProductionSummaryExport($data),
             "گزارش-تولید-کاربری-" . now()->format('Y-m-d') . ".xlsx"
         );
-
-//        $headers = [
-//            'Content-Type' => 'text/csv',
-//            'Content-Disposition' => 'attachment; filename="گزارش-تولید-کاربری-' . now()->format('Y-m-d') . '.csv"',
-//            'Content-Encoding' => 'UTF-8'
-//        ];
-//
-//        $callback = function () use ($data) {
-//            $file = fopen('php://output', 'w');
-//            fprintf($file, "\xEF\xBB\xBF"); // UTF-8 BOM
-//
-//            fputcsv($file, [
-//                'کاربر',
-//                'زیر محصول',
-//                'رنگ',
-//                'پارچه',
-//                'جمع دسته',
-//                'جمع کل'
-//            ], ',', '"');
-//
-//            foreach ($data as $row) {
-//                fputcsv($file, [
-//                    ($row->firstname ?? '') . ' ' . ($row->lastname ?? '') . '(' . $row->employee_code ?? '-' . ')',
-//                    $row->product_part_name,
-//                    $row->color_name ?? 'نامشخص',
-//                    $row->fabric_name ?? 'نامشخص',
-//                    $row->total_bunch,
-//                    $row->total_petals
-//                ], ',', '"');
-//            }
-//
-//            fclose($file);
-//        };
-//
-//        return response()->streamDownload($callback, "گزارش-تولید-کاربری-" . now()->format('Y-m-d') . ".csv", $headers);
     }
 
     private function validateSummaryRequest(Request $request): void

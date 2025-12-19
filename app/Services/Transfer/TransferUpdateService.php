@@ -3,9 +3,7 @@
 namespace App\Services\Transfer;
 
 use App\Models\Transfer;
-use App\Models\Inventory;
 use App\Enums\TransferStatusType;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class TransferUpdateService
@@ -18,6 +16,9 @@ class TransferUpdateService
         $this->validationService = $validationService;
     }
 
+    /**
+     * @throws ValidationException
+     */
     public function update(Transfer $transfer, array $data): Transfer
     {
         if ($transfer->status !== TransferStatusType::Pending) {
@@ -38,24 +39,22 @@ class TransferUpdateService
         }
 
         if (isset($data['items']) && is_array($data['items']) && count($data['items']) > 0) {
-            $this->validationService->validateItems($data['items']); // ✅ اضافه شد
+            $this->validationService->validateItems($data['items']);
         }
 
-        return DB::transaction(function () use ($transfer, $data) {
-            $transfer->update([
-                'transfer_date' => $data['transfer_date'] ?? $transfer->transfer_date,
-                'description' => $data['description'] ?? $transfer->description,
-            ]);
+        $transfer->update([
+            'transfer_date' => $data['transfer_date'] ?? $transfer->transfer_date,
+            'description' => $data['description'] ?? $transfer->description,
+        ]);
 
-            if (isset($data['items'])) {
-                $transfer->items()->delete();
+        if (isset($data['items'])) {
+            $transfer->items()->delete();
 
-                foreach ($data['items'] as $item) {
-                    $transfer->items()->create($item);
-                }
+            foreach ($data['items'] as $item) {
+                $transfer->items()->create($item);
             }
+        }
 
-            return $transfer;
-        });
+        return $transfer;
     }
 }

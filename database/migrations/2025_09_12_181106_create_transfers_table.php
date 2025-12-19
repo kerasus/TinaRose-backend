@@ -21,8 +21,11 @@ return new class extends Migration
             $table->date('transfer_date');
             $table->enum('status', ['pending', 'approved', 'rejected'])->default('pending');
             $table->text('description')->nullable();
-            $table->timestamp('approved_at')->nullable()->after('status');
-            $table->timestamp('rejected_at')->nullable()->after('approved_at');
+            $table->timestamp('approved_at')->nullable();
+            $table->unsignedBigInteger('approver_id')->nullable();
+            $table->timestamp('rejected_at')->nullable();
+            $table->unsignedBigInteger('rejecter_id')->nullable();
+
             $table->timestamps();
 
             // Foreign Keys
@@ -31,6 +34,8 @@ return new class extends Migration
             $table->foreign('from_inventory_id')->references('id')->on('user_inventories')->onDelete('set null');
             $table->foreign('to_inventory_id')->references('id')->on('user_inventories')->onDelete('set null');
             $table->foreign('creator_user_id')->references('id')->on('users')->onDelete('set null');
+            $table->foreign('rejecter_id')->references('id')->on('users')->onDelete('set null');
+            $table->foreign('approver_id')->references('id')->on('users')->onDelete('set null');
         });
     }
 

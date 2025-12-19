@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Models\Color;
+use App\Models\Fabric;
 use App\Traits\Filter;
 use App\Models\Product;
 use App\Models\Inventory;
@@ -17,10 +17,18 @@ use Illuminate\Http\JsonResponse;
 use App\Models\InventoryCountItem;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
+use Illuminate\Validation\ValidationException;
+use App\Services\Inventory\InventoryCountFinalizeService;
 
 class InventoryCountController extends Controller
 {
     use Filter, CommonCRUD;
+
+    private InventoryCountFinalizeService $inventoryCountFinalizeService;
+
+    public function __construct(InventoryCountFinalizeService $inventoryCountFinalizeService) {
+        $this->inventoryCountFinalizeService = $inventoryCountFinalizeService;
+    }
 
     public function index(Request $request)
     {
@@ -215,7 +223,7 @@ class InventoryCountController extends Controller
             'item_type' => [
                 'required',
                 'string',
-                Rule::in([ProductPart::class, RawMaterial::class, Product::class])
+                Rule::in([ProductPart::class, RawMaterial::class, Product::class, Fabric::class])
             ],
             'color_id' => 'nullable|exists:colors,id',
             'actual_quantity' => 'required|numeric|min:0',
@@ -272,40 +280,29 @@ class InventoryCountController extends Controller
     public function finalize(Request $request, int $countId): JsonResponse
     {
         $count = InventoryCount::with(['items'])->findOrFail($countId);
+        $adjust = $request->boolean('adjust_inventory', false);
 
-        $hasMissingActual = $count->items()->whereNull('actual_quantity')->exists();
+        try {
+            DB::transaction(function () use ($count, $adjust) {
+                $this->inventoryCountFinalizeService->finalize($count, $adjust);
+            });
 
-        if ($hasMissingActual) {
             return response()->json([
+                'message' => 'انبارگردانی با موفقیت بسته شد.',
+                'adjusted_inventory' => $adjust
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'خطا در نهایی سازی انبارگردانی',
                 'errors' => [
-                    'hasMissingActual' => 'شمارش هنوز کامل انجام نشده. لطفاً تمام آیتم‌ها را شمارش کنید.'
+                    $e->getMessage()
                 ]
             ], 422);
         }
-
-        $adjust = $request->boolean('adjust_inventory', false);
-
-        if ($adjust) {
-            foreach ($count->items as $item) {
-                if ($item->difference == 0) continue;
-
-                $inventoryItem = InventoryItem::where([
-                    ['inventory_id', $count->inventory_id],
-                    ['item_id', $item->item_id],
-                    ['item_type', $item->item_type],
-                    ['color_id', $item->color_id]
-                ])->first();
-
-                $inventoryItem?->update(['quantity' => $item->actual_quantity]);
-            }
-        }
-
-        $count->update(['is_locked' => true]);
-
-        return response()->json([
-            'message' => 'انبارگردانی با موفقیت بسته شد.',
-            'adjusted_inventory' => $adjust
-        ]);
     }
 
     public function destroy(InventoryCount $inventoryCount): JsonResponse
