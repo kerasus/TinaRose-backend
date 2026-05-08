@@ -16,6 +16,8 @@ return new class extends Migration
             $table->string('name');
             $table->string('code');
             $table->string('color_hex')->nullable();
+            $table->unsignedBigInteger('fabric_id')->nullable();
+            $table->foreign('fabric_id')->references('id')->on('fabrics')->onDelete('set null');
             $table->timestamps();
         });
     }

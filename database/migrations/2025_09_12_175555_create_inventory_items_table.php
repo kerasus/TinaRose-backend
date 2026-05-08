@@ -25,8 +25,10 @@ return new class extends Migration
 
             $table->unsignedBigInteger('color_id')->nullable();
             $table->foreign('color_id')->references('id')->on('colors')->onDelete('set null');
+            $table->unsignedBigInteger('fabric_id')->nullable();
+            $table->foreign('fabric_id')->references('id')->on('fabrics')->onDelete('set null');
 
-            $table->unique(['inventory_id', 'item_id', 'item_type', 'color_id'], 'inventory_item_unique');
+            $table->unique(['inventory_id', 'item_id', 'item_type', 'color_id', 'fabric_id'], 'inventory_item_unique');
 
             $table->timestamps();
         });

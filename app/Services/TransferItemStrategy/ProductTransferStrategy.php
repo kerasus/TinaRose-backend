@@ -34,6 +34,7 @@ class ProductTransferStrategy implements TransferStrategyInterface
 
                     // ToDo: ...
                     $colorId = null;
+                    $fabricId = null;
                     $requiredItemType = $requirement->required_item_type->value ?? $requirement->required_item_type;
                     if (in_array($requiredItemType, [ProductPart::class, Product::class])) {
                         $colorId = $inventoryItem->color_id ?? null;

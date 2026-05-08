@@ -16,6 +16,14 @@ return new class extends Migration
             $table->unsignedBigInteger('user_id');
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
 
+            $table->string('type'); // ذخیره مقدار enum مثل: cutting, coloring, molding_worker, assembling
+
+            $table->unsignedBigInteger('recorded_by');
+            $table->foreign('recorded_by')
+                ->references('id')
+                ->on('users')
+                ->onDelete('cascade');
+
             $table->unsignedBigInteger('product_id')->nullable();
             $table->foreign('product_id')->references('id')->on('products')->onDelete('set null');
 
@@ -28,12 +36,22 @@ return new class extends Migration
             $table->unsignedBigInteger('color_id')->nullable(); // فقط برای رنگ
             $table->foreign('color_id')->references('id')->on('colors')->onDelete('set null');
 
+            $table->unsignedBigInteger('approved_by')->nullable();
             $table->foreign('approved_by')->references('id')->on('users')->onDelete('set null');
             $table->timestamp('approved_at')->nullable();
 
             $table->date('production_date');
             $table->decimal('bunch_count', 8, 2);
             $table->text('description')->nullable();
+
+            $table->unsignedBigInteger('downtime_reason_id')->nullable();
+            $table->foreign('downtime_reason_id')->references('id')->on('downtime_reasons')->onDelete('set null');
+
+            $table->integer('downtime_duration')->nullable()->comment('مدت توقف به دقیقه');
+
+            $table->unsignedBigInteger('equipment_id')->nullable();
+            $table->foreign('equipment_id')->references('id')->on('equipments')->onDelete('set null');
+
             $table->timestamps();
         });
     }

@@ -8,7 +8,9 @@ use Illuminate\Database\Eloquent\Model;
 class Production extends Model
 {
     protected $fillable = [
-        'user_id',
+        'type',
+        'user_id',         // اپراتور
+        'recorded_by',     // ثبت‌کننده رکورد
         'product_part_id',
         'fabric_id',
         'color_id',
@@ -17,7 +19,10 @@ class Production extends Model
         'approved_at',
         'production_date',
         'bunch_count',
-        'description'
+        'description',
+        'downtime_reason_id',
+        'downtime_duration',
+        'equipment_id'
     ];
 
     protected $casts = [
@@ -25,9 +30,22 @@ class Production extends Model
         'approved_at' => 'datetime'
     ];
 
+    // deprecated: use -> operator
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    // اپراتور واقعی تولید
+    public function operator()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    // کسی که رکورد را ثبت کرده
+    public function recorder()
+    {
+        return $this->belongsTo(User::class, 'recorded_by');
     }
 
     public function productPart()
@@ -53,6 +71,16 @@ class Production extends Model
     public function approver()
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function downtimeReason()
+    {
+        return $this->belongsTo(DowntimeReason::class, 'downtime_reason_id');
+    }
+
+    public function equipment()
+    {
+        return $this->belongsTo(Equipment::class, 'equipment_id');
     }
 
     // ==============================
@@ -85,7 +113,9 @@ class Production extends Model
     {
         $query->join('product_parts', 'productions.product_part_id', '=', 'product_parts.id')
             ->leftJoin('colors', 'productions.color_id', '=', 'colors.id')
-            ->leftJoin('fabrics', 'productions.fabric_id', '=', 'fabrics.id');
+            ->leftJoin('fabrics', 'productions.fabric_id', '=', 'fabrics.id')
+            ->leftJoin('downtime_reasons', 'productions.downtime_reason_id', '=', 'downtime_reasons.id')
+            ->leftJoin('equipments', 'productions.equipment_id', '=', 'equipments.id');
 
         if ($groupByUser) {
             $query->join('users', 'productions.user_id', '=', 'users.id');
@@ -96,7 +126,12 @@ class Production extends Model
             DB::raw('colors.name as color_name'),
             DB::raw('fabrics.name as fabric_name'),
             DB::raw('SUM(productions.bunch_count) as total_bunch'),
-            DB::raw('SUM(productions.bunch_count * product_parts.count_per_bunch) as total_petals')
+            DB::raw('SUM(productions.bunch_count * product_parts.count_per_bunch) as total_petals'),
+            // Excel extra fields (aggregated over the group)
+            DB::raw('GROUP_CONCAT(DISTINCT equipments.title SEPARATOR ", ") as equipment'),
+            DB::raw('GROUP_CONCAT(DISTINCT equipments.code SEPARATOR ", ") as equipment_code'),
+            DB::raw('GROUP_CONCAT(DISTINCT downtime_reasons.name SEPARATOR ", ") as downtime_reason_title'),
+            DB::raw('COALESCE(SUM(productions.downtime_duration), 0) as downtime_duration'),
         ];
 
         if ($groupByUser) {

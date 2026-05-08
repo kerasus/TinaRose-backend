@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\ProductionType;
 use App\Traits\Filter;
 use App\Models\Production;
 use App\Traits\CommonCRUD;
@@ -44,7 +45,9 @@ class ProductionController extends Controller
             'returnModelQuery' => true,
             'filterKeys' => ['production_date'],
             'filterKeysExact'=> [
+                'type',
                 'user_id',
+                'recorded_by',
                 'color_id',
                 'fabric_id',
                 'product_id',
@@ -53,11 +56,15 @@ class ProductionController extends Controller
             ],
             'eagerLoads' => [
                 'user',
+                'operator',
+                'recorder',
                 'color',
                 'fabric',
                 'product',
                 'approver',
                 'productPart',
+                'downtimeReason',
+                'equipment',
             ],
             'scopes'=> [
                 'approved',
@@ -103,14 +110,47 @@ class ProductionController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
-
         $user = $request->user();
+
+        $workerRoles = [
+            UserRoleType::FabricCutter->value,
+            UserRoleType::ColoringWorker->value,
+            UserRoleType::MoldingWorker->value
+        ];
+
+        $roleToType = [
+            UserRoleType::FabricCutter->value   => ProductionType::Cutting,
+            UserRoleType::ColoringWorker->value => ProductionType::Coloring,
+            UserRoleType::MoldingWorker->value  => ProductionType::Molding,
+            UserRoleType::Assembler->value      => ProductionType::Assembling,
+        ];
+
+        $rolesCanCreateProductionForOther = [
+            UserRoleType::Manager->value,
+            UserRoleType::SalesManager->value,
+            UserRoleType::ProductManager->value
+        ];
+        $canCreateProductionForOther = $user->getRoleNames()->intersect($rolesCanCreateProductionForOther)->isNotEmpty();
+
         $roleNames = $user->getRoleNames();
+        $selectedRole = $roleNames
+            ->intersect(array_keys($roleToType))
+            ->first();
 
-        $workerRoles = ['FabricCutter', 'ColoringWorker', 'MoldingWorker'];
+        if ($canCreateProductionForOther && $request->filled('role')) {
+            $selectedRole = $request->input('role');
+        }
 
-        $isWorker = $roleNames->intersect($workerRoles)->isNotEmpty();
-        $isAssembler = $roleNames->contains('Assembler');
+        $isWorker = in_array($selectedRole, $workerRoles, true);
+        $isAssembler = $selectedRole === UserRoleType::Assembler->value;
+
+        $productionType = $roleToType[$selectedRole] ?? null;
+
+        if (!$productionType) {
+            return response()->json([
+                'message' => 'نقش کاربر قابل نگاشت به نوع تولید نیست'
+            ], 422);
+        }
 
         $baseRules = [
             'user_id' => 'required|exists:users,id',
@@ -120,7 +160,10 @@ class ProductionController extends Controller
                 'required',
                 'date_format:Y-m-d',
                 ($isWorker || $isAssembler) ? 'before_or_equal:' . Carbon::now()->format('Y-m-d') : ''
-            ]
+            ],
+            'downtime_reason_id' => 'nullable|exists:downtime_reasons,id',
+            'downtime_duration' => 'nullable|integer|min:0',
+            'equipment_id' => 'nullable|exists:equipments,id',
         ];
 
         if ($isAssembler) {
@@ -131,39 +174,49 @@ class ProductionController extends Controller
 
         $validated = Validator::make($request->all(), $baseRules)->validate();
 
-        if ($roleNames->contains('FabricCutter')) {
+        if ($selectedRole === UserRoleType::FabricCutter->value) {
             $request->validate([
                 'fabric_id' => 'required|exists:fabrics,id'
             ]);
             $validated['fabric_id'] = $request->input('fabric_id');
         }
 
-        if ($roleNames->contains('ColoringWorker')) {
+        if ($selectedRole === UserRoleType::ColoringWorker->value) {
             $request->validate([
                 'color_id' => 'required|exists:colors,id'
             ]);
             $validated['color_id'] = $request->input('color_id');
         }
 
-        if ($roleNames->contains('MoldingWorker')) {
+        if ($selectedRole === UserRoleType::MoldingWorker->value) {
             $request->validate([
                 'color_id' => 'required|exists:colors,id'
             ]);
             $validated['color_id'] = $request->input('color_id');
         }
 
-        if ($isAssembler) {
-            $disallowedFields = ['product_part_id', 'fabric_id', 'color_id'];
-            foreach ($disallowedFields as $field) {
-                if ($request->has($field)) {
-                    return response()->json([
-                        'error' => "ثبت فیلد {$field} برای مونتاژ کار مجاز نیست."
-                    ], 422);
-                }
-            }
-        }
+        $validated['type'] = $productionType->value;
+        $validated['recorded_by'] = $user->id;
 
         $production = Production::create($validated);
+
+        if ($canCreateProductionForOther) {
+            try {
+                DB::transaction(function () use ($production, $user) {
+                    $this->productionApproveService->approve($production, $user);
+                });
+            } catch (\Throwable $e) {
+
+                \Log::info('Throwable', [
+                    '$e' => $e,
+                ]);
+
+                return response()->json([
+                    'message' => 'خطا در تایید خودکار تولید',
+                    'errors' => [$e->getMessage()]
+                ], 422);
+            }
+        }
 
         return $this->show($production->id);
     }
@@ -176,7 +229,7 @@ class ProductionController extends Controller
      */
     public function show(int $id): JsonResponse
     {
-        $production = Production::with(['user', 'productPart', 'fabric', 'color'])->findOrFail($id);
+        $production = Production::with(['user', 'productPart', 'fabric', 'color', 'downtimeReason', 'equipment'])->findOrFail($id);
 
         return $this->jsonResponseOk($production);
     }
@@ -197,7 +250,10 @@ class ProductionController extends Controller
             'color_id' => 'sometimes|nullable|exists:colors,id',
             'production_date' => 'sometimes|required|date_format:Y-m-d',
             'bunch_count' => 'sometimes|required|numeric|min:0.01',
-            'description' => 'sometimes|nullable|string'
+            'description' => 'sometimes|nullable|string',
+            'downtime_reason_id' => 'sometimes|nullable|exists:downtime_reasons,id',
+            'downtime_duration' => 'sometimes|nullable|integer|min:0',
+            'equipment_id' => 'sometimes|nullable|exists:equipments,id',
         ]);
 
         return $this->commonUpdate($request, $production);

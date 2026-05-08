@@ -7,5 +7,10 @@ use Illuminate\Database\Eloquent\Model;
 
 class Color extends Model
 {
-    protected $fillable = ['name', 'code', 'color_hex'];
+    protected $fillable = ['name', 'code', 'color_hex', 'fabric_id'];
+
+    public function fabric()
+    {
+        return $this->belongsTo(Fabric::class);
+    }
 }

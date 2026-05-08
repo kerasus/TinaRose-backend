@@ -5,6 +5,7 @@ namespace App\Enums;
 enum UserRoleType: string
 {
     case Manager = 'Manager';
+    case SalesManager = 'SalesManager';
     case Accountant = 'Accountant';
     case ProductManager = 'ProductManager';
     case WarehouseKeeper = 'WarehouseKeeper';
@@ -30,6 +31,7 @@ enum UserRoleType: string
             self::FabricCutter => 'برش کار',
             self::Accountant => 'حسابدار',
             self::Manager => 'مدیر',
+            self::SalesManager => 'مدیر فروش',
             self::ProductManager => 'مدیر محصول',
         };
     }

@@ -31,7 +31,11 @@ class ProductionSummaryExport implements FromCollection, WithHeadings, WithMappi
             'رنگ',
             'پارچه',
             'جمع دسته',
-            'جمع کل گلبرگ'
+            'جمع کل گلبرگ',
+            'تجهیزات',
+            'کد تجهیزات',
+            'علت توقف',
+            'مدت توقف',
         ];
     }
 
@@ -43,6 +47,10 @@ class ProductionSummaryExport implements FromCollection, WithHeadings, WithMappi
             $row->fabric_name ?? 'نامشخص',
             $row->total_bunch,
             $row->total_petals,
+            $row->equipment ?? 'نامشخص',
+            $row->equipment_code ?? 'نامشخص',
+            $row->downtime_reason_title ?? 'نامشخص',
+            $row->downtime_duration ?? 0,
         ];
     }
 
@@ -64,7 +72,11 @@ class ProductionSummaryExport implements FromCollection, WithHeadings, WithMappi
             'B' => 20, // رنگ
             'C' => 20, // پارچه
             'D' => 15, // جمع دسته
-            'E' => 20  // جمع کل گلبرگ
+            'E' => 20, // جمع کل گلبرگ
+            'F' => 25, // تجهیزات
+            'G' => 20, // کد تجهیزات
+            'H' => 25, // علت توقف
+            'I' => 15, // مدت توقف
         ];
     }
 }

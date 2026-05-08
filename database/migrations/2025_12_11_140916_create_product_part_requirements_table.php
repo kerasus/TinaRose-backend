@@ -26,7 +26,7 @@ return new class extends Migration
             $table->timestamps();
 
             // جلوگیری از تکراری بودن
-            $table->unique(['product_part_id', 'required_item_id', 'required_item_type', 'color_id'], 'part_requirement_unique');
+            $table->unique(['product_part_id', 'required_item_id', 'required_item_type'], 'part_requirement_unique');
         });
     }
 

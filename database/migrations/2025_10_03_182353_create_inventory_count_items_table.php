@@ -20,6 +20,8 @@ return new class extends Migration
             $table->string('item_type');
             $table->unsignedBigInteger('color_id')->nullable();
             $table->foreign('color_id')->references('id')->on('colors')->onDelete('set null');
+            $table->unsignedBigInteger('fabric_id')->nullable();
+            $table->foreign('fabric_id')->references('id')->on('fabrics')->onDelete('set null');
 
             $table->decimal('system_quantity', 14, 4)->default(0);
             $table->decimal('actual_quantity', 14, 4)->nullable()->default(0);
@@ -27,7 +29,7 @@ return new class extends Migration
 
             $table->text('notes')->nullable();
 
-            $table->unique(['inventory_count_id', 'item_id', 'item_type', 'color_id'], 'count_item_unique');
+            $table->unique(['inventory_count_id', 'item_id', 'item_type', 'color_id', 'fabric_id'], 'count_item_unique');
 
             $table->timestamps();
         });

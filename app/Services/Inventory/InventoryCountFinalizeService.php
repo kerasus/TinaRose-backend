@@ -34,7 +34,8 @@ class InventoryCountFinalizeService
                     ['inventory_id', $count->inventory_id],
                     ['item_id', $item->item_id],
                     ['item_type', $item->item_type],
-                    ['color_id', $item->color_id]
+                    ['color_id', $item->color_id],
+                    ['fabric_id', $item->fabric_id]
                 ])->first();
 
                 if ($inventoryItem) {
@@ -45,6 +46,7 @@ class InventoryCountFinalizeService
                         'item_id' => $item->item_id,
                         'item_type' => $item->item_type,
                         'color_id' => $item->color_id,
+                        'fabric_id' => $item->fabric_id,
                         'quantity' => $item->actual_quantity
                     ]);
                 }

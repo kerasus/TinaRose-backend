@@ -35,13 +35,56 @@ class DefaultTransferStrategy implements TransferStrategyInterface
             ['inventory_id', $fromInventoryId],
             ['item_id', $inventoryItemData['item_id']],
             ['item_type', $inventoryItemData['item_type']],
-            ['color_id', $inventoryItemData['color_id'] ?? null]
+            ['color_id', $inventoryItemData['color_id'] ?? null],
+            ['fabric_id', $inventoryItemData['fabric_id'] ?? null]
         ])->first();
 
         if (!$inventoryItem) {
+            $fromInventory = \App\Models\Inventory::find($fromInventoryId);
+            $fromInventoryName = $fromInventory?->name ?? 'نامشخص';
+
+            $itemType = $inventoryItemData['item_type'] ?? null;
+            $itemId = $inventoryItemData['item_id'] ?? null;
+
+            $itemName = 'آیتم نامشخص';
+            if ($itemType && $itemId && class_exists($itemType)) {
+                $item = $itemType::find($itemId);
+                $itemName = $item?->name ?? 'آیتم نامشخص';
+            }
+
+            // تبدیل نوع آیتم به عنوان فارسی
+            $itemTypeLabel = match ($itemType) {
+                \App\Models\Fabric::class => 'پارچه',
+                \App\Models\Product::class => 'محصول',
+                \App\Models\RawMaterial::class => 'مواد اولیه',
+                \App\Models\ProductPart::class => 'قطعه',
+                default => 'آیتم',
+            };
+
+            $colorName = null;
+            $fabricName = null;
+
+            if (!empty($inventoryItemData['color_id'])) {
+                $color = \App\Models\Color::with('fabric')->find($inventoryItemData['color_id']);
+                $colorName = $color?->name;
+                $fabricName = $color?->fabric?->name;
+            }
+
+            $details = [];
+
+            if ($fabricName) {
+                $details[] = "پارچه {$fabricName}";
+            }
+
+            if ($colorName) {
+                $details[] = "رنگ {$colorName}";
+            }
+
+            $detailsText = !empty($details) ? ' (' . implode('، ', $details) . ')' : '';
+
             return [
                 'errors' => [
-                    'validate_outgoing' => 'آیتم مورد نظر در انبار مبدأ وجود ندارد.'
+                    'validate_outgoing' => "{$itemTypeLabel} {$itemName}{$detailsText} در انبار {$fromInventoryName} یافت نشد."
                 ]
             ];
         }
@@ -50,10 +93,53 @@ class DefaultTransferStrategy implements TransferStrategyInterface
         $available = $inventoryItem->quantity ?? 0;
 
         if ($available < $itemQuantity) {
-            $name = $inventoryItem->item?->name ?? 'آیتم نامشخص';
+            $fromInventory = \App\Models\Inventory::find($fromInventoryId);
+            $fromInventoryName = $fromInventory?->name ?? 'نامشخص';
+
+            $itemType = $inventoryItemData['item_type'] ?? null;
+            $itemId = $inventoryItemData['item_id'] ?? null;
+
+            $itemName = $inventoryItem->item?->name ?? 'آیتم نامشخص';
+
+            $itemTypeLabel = match ($itemType) {
+                \App\Models\Fabric::class => 'پارچه',
+                \App\Models\Product::class => 'محصول',
+                \App\Models\RawMaterial::class => 'مواد اولیه',
+                \App\Models\ProductPart::class => 'قطعه',
+                default => 'آیتم',
+            };
+
+            $colorName = null;
+            $fabricName = null;
+
+            if (!empty($inventoryItemData['color_id'])) {
+                $color = \App\Models\Color::with('fabric')->find($inventoryItemData['color_id']);
+                $colorName = $color?->name;
+                $fabricName = $color?->fabric?->name;
+            }
+
+            if (!$fabricName && !empty($inventoryItemData['fabric_id'])) {
+                $fabric = \App\Models\Fabric::find($inventoryItemData['fabric_id']);
+                $fabricName = $fabric?->name;
+            }
+
+            $details = [];
+
+            if ($fabricName) {
+                $details[] = "پارچه {$fabricName}";
+            }
+
+            if ($colorName) {
+                $details[] = "رنگ {$colorName}";
+            }
+
+            $detailsText = !empty($details) ? ' (' . implode('، ', $details) . ')' : '';
+
             return [
                 'errors' => [
-                    'validate_outgoing' => "موجودی کافی نیست برای «{$name}». <br> درخواست: {$itemQuantity}, موجود: {$available}"
+                    'validate_outgoing' =>
+                        "موجودی {$itemTypeLabel} «{$itemName}»{$detailsText} در انبار {$fromInventoryName} کافی نیست. <br>" .
+                        "درخواست: {$itemQuantity}، موجود: {$available}"
                 ]
             ];
         }
@@ -77,7 +163,8 @@ class DefaultTransferStrategy implements TransferStrategyInterface
                 ['inventory_id', $toInventory->id],
                 ['item_id', $transferItem->item_id],
                 ['item_type', $transferItem->item_type],
-                ['color_id', $transferItem->color_id ?? null]
+                ['color_id', $transferItem->color_id ?? null],
+                ['fabric_id', $transferItem->fabric_id ?? null]
             ])->first();
 
             if (!$inventoryItem) {

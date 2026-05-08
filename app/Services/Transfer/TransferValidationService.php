@@ -2,7 +2,9 @@
 
 namespace App\Services\Transfer;
 
+use App\Enums\InventoryType;
 use App\Models\Color;
+use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\ProductPart;
 use Illuminate\Database\Eloquent\Model;
@@ -69,12 +71,23 @@ class TransferValidationService
     /**
      * @throws ValidationException
      */
-    public function validateInventoryAccess($inventory): void
+    public function validateInventoryAccess(Inventory $inventory): void
     {
-        if ($inventory && $inventory->is_locked) {
+        $inventoryName = $inventory->name ?? 'انبار نامشخص';
+        $inventoryTypeLabel = InventoryType::tryFrom($inventory->type)?->label() ?? $inventory->type;
+
+        if ($inventory->has_open_inventory_count) {
             throw ValidationException::withMessages([
                 'inventory_is_locked' => [
-                    'انبار در حال انبارگردانی است. تا پایان انبارگردانی نمی‌توان حواله ثبت کرد.'
+                    "انبار «{$inventoryName}» ({$inventoryTypeLabel}) در حال انبارگردانی است. تا پایان انبارگردانی نمی‌توان حواله ثبت کرد."
+                ]
+            ]);
+        }
+
+        if ($inventory->has_pending_transfers) {
+            throw ValidationException::withMessages([
+                'inventory_is_locked' => [
+                    "انبار «{$inventoryName}» ({$inventoryTypeLabel}) دارای حواله‌های تأیید نشده است. تا پایان تأیید حواله‌ها نمی‌توان حواله جدید ثبت کرد."
                 ]
             ]);
         }
@@ -86,7 +99,7 @@ class TransferValidationService
     public function validateInventoryAvailability(array $items, $fromInventory): void
     {
         $groupedItems = collect($items)->groupBy(function ($item) {
-            return $item['item_id'] . '-' . $item['item_type'] . '-' . ($item['color_id'] ?? 'null');
+            return $item['item_id'] . '-' . $item['item_type'] . '-' . ($item['color_id'] ?? 'null') . '-' . ($item['fabric_id'] ?? 'null');
         });
 
         foreach ($groupedItems as $group) {

@@ -22,7 +22,8 @@ class ColorController extends Controller
     public function index(Request $request): JsonResponse
     {
         $config = [
-            'filterKeys' => ['name', 'code', 'color_hex']
+            'filterKeys' => ['name', 'code', 'color_hex'],
+            'eagerLoads' => ['fabric']
         ];
 
         return $this->commonIndex($request, Color::class, $config);
@@ -39,6 +40,7 @@ class ColorController extends Controller
         $request->validate([
             'name' => 'required|string|max:255',
             'color_hex' => 'nullable|string|max:10',
+            'fabric_id' => 'nullable|exists:fabrics,id',
         ]);
 
         return $this->commonStore($request, Color::class);
@@ -52,7 +54,7 @@ class ColorController extends Controller
      */
     public function show(int $id): JsonResponse
     {
-        $color = Color::findOrFail($id);
+        $color = Color::with('fabric')->findOrFail($id);
 
         return $this->jsonResponseOk($color);
     }
@@ -68,7 +70,8 @@ class ColorController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'color_hex' => 'nullable|nullable|string|max:10'
+            'color_hex' => 'nullable|string|max:10',
+            'fabric_id' => 'nullable|exists:fabrics,id',
         ]);
 
         \Log::info('Model Data', [

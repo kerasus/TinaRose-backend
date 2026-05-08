@@ -15,6 +15,8 @@ use App\Http\Controllers\Api\RawMaterialController;
 use App\Http\Controllers\Api\InventoryCountController;
 use App\Http\Controllers\Api\DatabaseBackupController;
 use App\Http\Controllers\Api\TransferPackageController;
+use App\Http\Controllers\Api\EquipmentController;
+use App\Http\Controllers\Api\DowntimeReasonController;
 
 /*
 |--------------------------------------------------------------------------
@@ -79,10 +81,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('fabrics', '\\'.FabricController::class);
     Route::apiResource('products', '\\'.ProductController::class);
     Route::apiResource('transfers', '\\'.TransferController::class);
+    Route::apiResource('equipments', '\\'.EquipmentController::class);
     Route::apiResource('inventories', '\\'.InventoryController::class);
     Route::apiResource('productions', '\\'.ProductionController::class);
     Route::apiResource('product-parts', '\\'.ProductPartController::class);
     Route::apiResource('raw-materials', '\\'.RawMaterialController::class);
+    Route::apiResource('downtime-reasons', '\\'.DowntimeReasonController::class);
     Route::apiResource('transfer-packages', '\\'.TransferPackageController::class);
     Route::apiResource('inventory-counts', InventoryCountController::class)->only(['index', 'show', 'destroy']);
 });

@@ -95,7 +95,8 @@ class TransferDeletionService
                         'inventory_id' => $transfer->from_inventory_id,
                         'item_id' => $item->item_id,
                         'item_type' => $item->item_type,
-                        'color_id' => $item->color_id ?? null
+                        'color_id' => $item->color_id ?? null,
+                        'fabric_id' => $item->fabric_id ?? null
                     ]
                 );
 
@@ -108,7 +109,8 @@ class TransferDeletionService
                         'inventory_id' => $transfer->to_inventory_id,
                         'item_id' => $item->item_id,
                         'item_type' => $item->item_type,
-                        'color_id' => $item->color_id ?? null
+                        'color_id' => $item->color_id ?? null,
+                        'fabric_id' => $item->fabric_id ?? null
                     ]
                 );
 

@@ -133,6 +133,7 @@ class TransferController extends Controller
             ],
             'items.*.item_id'     => 'required|integer',
             'items.*.color_id'    => 'nullable|exists:colors,id',
+            'items.*.fabric_id'   => 'nullable|exists:fabrics,id',
             'items.*.quantity'    => 'required|numeric|min:0.01',
             'items.*.notes'       => 'nullable|string'
         ]);
@@ -204,6 +205,7 @@ class TransferController extends Controller
             ],
             'items.*.item_id' => 'sometimes|required|integer',
             'items.*.color_id' => 'sometimes|nullable|exists:colors,id',
+            'items.*.fabric_id'   => 'nullable|exists:fabrics,id',
             'items.*.quantity' => 'sometimes|required|numeric|min:0.01',
             'items.*.notes' => 'sometimes|nullable|string'
         ]);

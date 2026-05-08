@@ -176,6 +176,9 @@ return [
         'fabric_id' => [
             'required' => 'پارچه الزامی است.',
         ],
+        'equipment_id' => [
+            'required' => 'تجهیز الزامی است.',
+        ],
         'color_id' => [
             'required' => 'رنگ الزامی است.',
         ],
@@ -205,6 +208,7 @@ return [
         'images' => 'تصاویر',
         'user_id' => 'کاربر',
         'fabric_id' => 'پارچه',
+        'equipment_id' => 'تجهیز',
         'bunch_count' => 'تعداد دسته',
         'product_part_id' => 'زیرمحصول',
         'items' => 'موارد حواله',
