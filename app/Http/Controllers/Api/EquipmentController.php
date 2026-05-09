@@ -22,7 +22,10 @@ class EquipmentController extends Controller
     public function index(Request $request): JsonResponse
     {
         $config = [
-            'filterKeys' => ['title', 'code', 'description']
+            'filterKeys' => ['title', 'code', 'description'],
+            'filterKeysExact'=> [
+                'id'
+            ],
         ];
 
         return $this->commonIndex($request, Equipment::class, $config);

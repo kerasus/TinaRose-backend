@@ -55,7 +55,7 @@ class ProductionController extends Controller
                 'product_part_id'
             ],
             'eagerLoads' => [
-                'user',
+                'user', // deprecated
                 'operator',
                 'recorder',
                 'color',
@@ -229,7 +229,15 @@ class ProductionController extends Controller
      */
     public function show(int $id): JsonResponse
     {
-        $production = Production::with(['user', 'productPart', 'fabric', 'color', 'downtimeReason', 'equipment'])->findOrFail($id);
+        $production = Production::with([
+            'user', // deprecated
+            'operator',
+            'productPart',
+            'fabric',
+            'color',
+            'downtimeReason',
+            'equipment'
+        ])->findOrFail($id);
 
         return $this->jsonResponseOk($production);
     }
@@ -243,6 +251,33 @@ class ProductionController extends Controller
      */
     public function update(Request $request, Production $production): JsonResponse
     {
+        if ($production->is_confirmed) {
+            return response()->json([
+                'message' => 'خطا',
+                'errors' => [
+                    'update_permission' => 'این گزارش تولید تایید شده است و امکان ویرایش ندارد.'
+                ]
+            ], 403);
+        }
+
+        $user = auth()->user();
+
+        $rolesCanUpdateProductionForOther = [
+            UserRoleType::Manager->value,
+            UserRoleType::SalesManager->value,
+            UserRoleType::ProductManager->value,
+        ];
+        $userHasAdminPrivileges = $user->getRoleNames()->intersect($rolesCanUpdateProductionForOther)->isNotEmpty();
+
+        if (!$userHasAdminPrivileges && $user->id !== $production->user_id) {
+            return response()->json([
+                'message' => 'خطا',
+                'errors' => [
+                    'update_permission' => 'شما مجوز ویرایش این گزارش تولید را ندارید.'
+                ]
+            ], 403);
+        }
+
         $request->validate([
             'user_id' => 'sometimes|required|exists:users,id',
             'product_part_id' => 'sometimes|required|exists:product_parts,id',

@@ -54,6 +54,9 @@ class UserController extends Controller
                 'email',
                 'mobile'
             ],
+            'filterKeysExact'=> [
+                'id'
+            ],
             'filterOnMultipleColumnKeys' => [
                 [
                     'requestKey' => 'full_name',

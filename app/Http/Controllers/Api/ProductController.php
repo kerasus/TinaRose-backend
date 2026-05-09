@@ -24,7 +24,7 @@ class ProductController extends Controller
     {
         $config = [
             'filterKeys' => ['name', 'code'],
-            'filterKeysExact' => ['unit_small', 'unit_large'],
+            'filterKeysExact' => ['id', 'unit_small', 'unit_large'],
             'eagerLoads' => ['requirements.requiredItem']
         ];
 

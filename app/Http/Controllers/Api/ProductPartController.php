@@ -25,7 +25,10 @@ class ProductPartController extends Controller
     public function index(Request $request): JsonResponse
     {
         $config = [
-            'filterKeys' => ['name', 'code']
+            'filterKeys' => ['name', 'code'],
+            'filterKeysExact'=> [
+                'id'
+            ],
         ];
 
         return $this->commonIndex($request, ProductPart::class, $config);

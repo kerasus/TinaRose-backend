@@ -29,7 +29,9 @@ class TransferPackageController extends Controller
     {
         $config = [
             'filterKeys' => ['name', 'description'],
-            'filterKeysExact' => [],
+            'filterKeysExact'=> [
+                'id'
+            ],
             'eagerLoads' => ['items.item', 'items.color']
         ];
 

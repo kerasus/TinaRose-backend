@@ -23,6 +23,9 @@ class ColorController extends Controller
     {
         $config = [
             'filterKeys' => ['name', 'code', 'color_hex'],
+            'filterKeysExact'=> [
+                'id'
+            ],
             'eagerLoads' => ['fabric']
         ];
 

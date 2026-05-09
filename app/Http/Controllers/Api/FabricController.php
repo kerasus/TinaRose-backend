@@ -22,7 +22,10 @@ class FabricController extends Controller
     public function index(Request $request): JsonResponse
     {
         $config = [
-            'filterKeys' => ['name', 'code', 'color_hex']
+            'filterKeys' => ['name', 'code', 'color_hex'],
+            'filterKeysExact'=> [
+                'id'
+            ],
         ];
 
         return $this->commonIndex($request, Fabric::class, $config);

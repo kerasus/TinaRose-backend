@@ -27,6 +27,7 @@ class InventoryController extends Controller
         $config = [
             'filterKeys' => ['name'],
             'filterOrKeysExact' => [
+                'id',
                 'user_id',
                 'type'
             ],

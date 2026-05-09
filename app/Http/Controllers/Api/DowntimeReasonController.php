@@ -22,7 +22,10 @@ class DowntimeReasonController extends Controller
     public function index(Request $request): JsonResponse
     {
         $config = [
-            'filterKeys' => ['name', 'description']
+            'filterKeys' => ['name', 'description'],
+            'filterKeysExact'=> [
+                'id'
+            ],
         ];
 
         return $this->commonIndex($request, DowntimeReason::class, $config);
