@@ -15,22 +15,34 @@ class CorrespondencePolicy
 
     public function update(User $user, Correspondence $correspondence): bool
     {
-        return $correspondence->sender_id === $user->id;
+        $userId = (int) $user->id;
+        $senderId = (int) $correspondence->sender_id;
+
+        return $senderId === $userId;
     }
 
     public function send(User $user, Correspondence $correspondence): bool
     {
-        return $correspondence->sender_id === $user->id;
+        $userId = (int) $user->id;
+        $senderId = (int) $correspondence->sender_id;
+
+        return $senderId === $userId;
     }
 
     public function attach(User $user, Correspondence $correspondence): bool
     {
-        return $correspondence->sender_id === $user->id;
+        $userId = (int) $user->id;
+        $senderId = (int) $correspondence->sender_id;
+
+        return $senderId === $userId;
     }
 
     public function addRecipient(User $user, Correspondence $correspondence): bool
     {
-        return $correspondence->sender_id === $user->id;
+        $userId = (int) $user->id;
+        $senderId = (int) $correspondence->sender_id;
+
+        return $senderId === $userId;
     }
 
     public function createChildAssignment(User $user, Correspondence $correspondence): bool
@@ -40,7 +52,10 @@ class CorrespondencePolicy
 
     private function isParticipant(User $user, Correspondence $correspondence): bool
     {
-        $isParticipant = $correspondence->sender_id === $user->id
+        $userId = (int) $user->id;
+        $senderId = (int) $correspondence->sender_id;
+
+        $isParticipant = $senderId === $userId
             || $correspondence->recipients()->where('user_id', $user->id)->exists()
             || $correspondence->assignments()->where('assigned_to_id', $user->id)->exists();
 
