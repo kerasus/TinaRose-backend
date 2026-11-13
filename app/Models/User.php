@@ -66,4 +66,19 @@ class User extends Authenticatable
     {
         return $this->getRoleNames()->toArray();
     }
+
+    public function correspondenceRecipients(): HasMany
+    {
+        return $this->hasMany(CorrespondenceRecipient::class);
+    }
+
+    public function correspondenceAssignments(): HasMany
+    {
+        return $this->hasMany(CorrespondenceAssignment::class, 'assigned_to_id');
+    }
+
+    public function sentCorrespondences(): HasMany
+    {
+        return $this->hasMany(Correspondence::class, 'sender_id');
+    }
 }

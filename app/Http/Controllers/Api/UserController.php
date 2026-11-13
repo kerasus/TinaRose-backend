@@ -75,6 +75,69 @@ class UserController extends Controller
     }
 
     /**
+     * لیست سبک و صفحه‌بندی‌شده از کاربران (برای انتخابگرها)
+     * خروجی دقیقاً مشابه index است اما فقط فیلدهای سبک و نقش‌ها را برمی‌گرداند.
+     */
+    public function lightIndex(Request $request): JsonResponse
+    {
+        $config = [
+            'filterKeys' => [
+                'firstname',
+                'lastname',
+                'username',
+                'employee_code',
+                'email',
+                'mobile'
+            ],
+            'filterKeysExact' => [
+                'id'
+            ],
+            'filterOnMultipleColumnKeys' => [
+                [
+                    'requestKey' => 'full_name',
+                    'columns' => [
+                        'firstname',
+                        'lastname',
+                    ]
+                ],
+            ],
+            'scopes' => [
+                'role'
+            ],
+            'eagerLoads' => [
+                'roles:id,name'
+            ],
+            'returnModelQuery' => true,
+        ];
+
+        $result = $this->commonIndex($request, User::class, $config);
+        $perPage = $request->has('length') ? (int) $request->get('length') : 10;
+
+        $users = $result['modelQuery']
+            ->select(['users.id', 'users.firstname', 'users.lastname', 'users.employee_code'])
+            ->paginate($perPage);
+
+        $users->getCollection()->each(function ($user) {
+            $user->makeHidden('roles_list');
+        });
+
+        return $this->jsonResponseOk($users);
+    }
+
+    /**
+     * اطلاعات سبک یک کاربر - فقط id، نام، نام خانوادگی، کد پرسنلی و نقش‌ها
+     */
+    public function basic(int $id): JsonResponse
+    {
+        $user = User::query()
+            ->select(['id', 'firstname', 'lastname', 'employee_code'])
+            ->with(['roles:id,name'])
+            ->findOrFail($id);
+
+        return $this->jsonResponseOk($user->makeHidden('roles_list'));
+    }
+
+    /**
      * Store a newly created resource in storage.
      *
      * @param Request $request

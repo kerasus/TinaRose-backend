@@ -76,6 +76,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('database/backup', [DatabaseBackupController::class, 'backupDatabase']);
 
+    Route::get('users/light', [UserController::class, 'lightIndex']);
+    Route::get('users/{user}/basic', [UserController::class, 'basic']);
     Route::apiResource('users', '\\'.UserController::class);
     Route::apiResource('colors', '\\'.ColorController::class);
     Route::apiResource('fabrics', '\\'.FabricController::class);
@@ -89,4 +91,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('downtime-reasons', '\\'.DowntimeReasonController::class);
     Route::apiResource('transfer-packages', '\\'.TransferPackageController::class);
     Route::apiResource('inventory-counts', InventoryCountController::class)->only(['index', 'show', 'destroy']);
+
+    Route::prefix('correspondences')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Api\CorrespondenceController::class, 'index']);
+        Route::post('/', [\App\Http\Controllers\Api\CorrespondenceController::class, 'store']);
+        Route::get('/inbox', [\App\Http\Controllers\Api\CorrespondenceInboxController::class, 'recipients']);
+        Route::get('/assignments', [\App\Http\Controllers\Api\CorrespondenceInboxController::class, 'assignments']);
+        Route::get('/{correspondence}', [\App\Http\Controllers\Api\CorrespondenceController::class, 'show']);
+        Route::post('/{correspondence}/send', [\App\Http\Controllers\Api\CorrespondenceController::class, 'send']);
+        Route::post('/{correspondence}/attachments', [\App\Http\Controllers\Api\CorrespondenceController::class, 'attach']);
+        Route::post('/{correspondence}/recipients', [\App\Http\Controllers\Api\CorrespondenceController::class, 'addRecipients']);
+
+        Route::post('/assignments/{assignment}/children', [\App\Http\Controllers\Api\CorrespondenceAssignmentController::class, 'store']);
+        Route::post('/assignments/{assignment}/start', [\App\Http\Controllers\Api\CorrespondenceAssignmentController::class, 'start']);
+        Route::post('/assignments/{assignment}/complete', [\App\Http\Controllers\Api\CorrespondenceAssignmentController::class, 'complete']);
+        Route::post('/assignments/{assignment}/reject', [\App\Http\Controllers\Api\CorrespondenceAssignmentController::class, 'reject']);
+    });
 });
