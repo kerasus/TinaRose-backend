@@ -46,7 +46,10 @@ class CorrespondenceService
 
     public function send(Correspondence $correspondence, User $actor): Correspondence
     {
-        if ($correspondence->sender_id !== $actor->id) {
+        $actorId = (int) $actor->id;
+        $senderId = (int) $correspondence->sender_id;
+
+        if ($senderId !== $actorId) {
             throw new AuthorizationException('فقط فرستنده می‌تواند نامه را ارسال کند.');
         }
 
@@ -164,7 +167,10 @@ class CorrespondenceService
      */
     public function addRecipients(Correspondence $correspondence, User $actor, array $recipients): Correspondence
     {
-        if ($correspondence->sender_id !== $actor->id) {
+        $actorId = (int) $actor->id;
+        $senderId = (int) $correspondence->sender_id;
+
+        if ($senderId !== $actorId) {
             throw new AuthorizationException('فقط فرستنده می‌تواند گیرنده اضافه کند.');
         }
 
