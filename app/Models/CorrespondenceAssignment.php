@@ -28,6 +28,11 @@ class CorrespondenceAssignment extends Model
     ];
 
     protected $casts = [
+        'id' => 'integer',
+        'correspondence_id' => 'integer',
+        'parent_assignment_id' => 'integer',
+        'assigned_by_id' => 'integer',
+        'assigned_to_id' => 'integer',
         'status' => AssignmentStatus::class,
         'due_at' => 'datetime',
         'read_at' => 'datetime',

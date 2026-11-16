@@ -30,6 +30,10 @@ class Correspondence extends Model
     ];
 
     protected $casts = [
+        'id' => 'integer',
+        'sender_id' => 'integer',
+        'thread_root_id' => 'integer',
+        'reply_to_id' => 'integer',
         'status' => CorrespondenceStatus::class,
         'priority' => CorrespondencePriority::class,
         'confidentiality' => CorrespondenceConfidentiality::class,

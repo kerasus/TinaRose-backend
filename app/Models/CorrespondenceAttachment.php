@@ -22,6 +22,9 @@ class CorrespondenceAttachment extends Model
     ];
 
     protected $casts = [
+        'id' => 'integer',
+        'correspondence_id' => 'integer',
+        'uploaded_by_id' => 'integer',
         'size_bytes' => 'integer',
     ];
 

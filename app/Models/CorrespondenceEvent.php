@@ -23,6 +23,10 @@ class CorrespondenceEvent extends Model
     ];
 
     protected $casts = [
+        'id' => 'integer',
+        'correspondence_id' => 'integer',
+        'assignment_id' => 'integer',
+        'actor_id' => 'integer',
         'event_type' => CorrespondenceEventType::class,
         'metadata' => 'array',
         'created_at' => 'datetime',

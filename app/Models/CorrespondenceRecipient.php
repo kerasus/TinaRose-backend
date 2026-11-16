@@ -21,6 +21,9 @@ class CorrespondenceRecipient extends Model
     ];
 
     protected $casts = [
+        'id' => 'integer',
+        'correspondence_id' => 'integer',
+        'user_id' => 'integer',
         'type' => RecipientType::class,
         'due_at' => 'datetime',
         'read_at' => 'datetime',
