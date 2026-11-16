@@ -17,6 +17,10 @@ class InboxService
             ->where('correspondence_recipients.user_id', $user->id)
             ->whereHas('correspondence', fn ($q) => $q->whereNotNull('sent_at'));
 
+        if ($request->boolean('unread')) {
+            $query->whereNull('read_at');
+        }
+
         if ($request->filled('reference_number')) {
             $reference = trim((string) $request->get('reference_number'));
             $query->whereHas('correspondence', fn ($q) => $q->where('reference_number', 'like', '%' . $reference . '%'));
@@ -59,6 +63,10 @@ class InboxService
         $query = CorrespondenceAssignment::query()
             ->with(['correspondence.sender', 'parent', 'assignedBy', 'assignedTo'])
             ->where('correspondence_assignments.assigned_to_id', $user->id);
+
+        if ($request->boolean('unread')) {
+            $query->whereNull('read_at');
+        }
 
         if ($request->filled('reference_number')) {
             $reference = trim((string) $request->get('reference_number'));
