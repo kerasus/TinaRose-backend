@@ -29,6 +29,10 @@ class Correspondence extends Model
         'closed_at',
     ];
 
+    protected $appends = [
+        'has_been_seen',
+    ];
+
     protected $casts = [
         'id' => 'integer',
         'sender_id' => 'integer',
@@ -45,6 +49,24 @@ class Correspondence extends Model
     public function sender(): BelongsTo
     {
         return $this->belongsTo(User::class, 'sender_id');
+    }
+
+    /**
+     * آیا نامه توسط هیچ‌یک از گیرندگان یا مسئولان ارجاع مشاهده شده است؟
+     */
+    public function getHasBeenSeenAttribute(): bool
+    {
+        $recipientsSeen = $this->relationLoaded('recipients')
+            ? $this->recipients->contains(fn (CorrespondenceRecipient $recipient) => $recipient->read_at !== null)
+            : $this->recipients()->whereNotNull('read_at')->exists();
+
+        if ($recipientsSeen) {
+            return true;
+        }
+
+        return $this->relationLoaded('assignments')
+            ? $this->assignments->contains(fn (CorrespondenceAssignment $assignment) => $assignment->read_at !== null)
+            : $this->assignments()->whereNotNull('read_at')->exists();
     }
 
     public function threadRoot(): BelongsTo

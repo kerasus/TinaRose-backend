@@ -72,7 +72,12 @@ class CorrespondenceController extends Controller
 
     public function store(StoreCorrespondenceRequest $request): JsonResponse
     {
-        $correspondence = $this->correspondenceService->createDraft($request->user(), $request->validated());
+        $sendImmediately = $request->boolean('send');
+        $data = $request->validated();
+
+        $correspondence = $sendImmediately
+            ? $this->correspondenceService->createAndSend($request->user(), $data)
+            : $this->correspondenceService->createDraft($request->user(), $data);
 
         return response()->json(new CorrespondenceResource($correspondence), 201);
     }
@@ -104,6 +109,14 @@ class CorrespondenceController extends Controller
         $sent = $this->correspondenceService->send($correspondence, $request->user());
 
         return response()->json(new CorrespondenceResource($sent));
+    }
+
+    public function destroy(Request $request, Correspondence $correspondence): JsonResponse
+    {
+        $this->authorize('delete', $correspondence);
+        $this->correspondenceService->deleteIfUnseen($correspondence, $request->user());
+
+        return response()->json(['message' => 'نامه با موفقیت حذف شد.']);
     }
 
     public function attach(StoreAttachmentRequest $request, Correspondence $correspondence): JsonResponse

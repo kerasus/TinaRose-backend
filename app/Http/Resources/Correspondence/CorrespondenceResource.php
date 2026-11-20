@@ -23,6 +23,7 @@ class CorrespondenceResource extends JsonResource
             'due_at' => $this->due_at,
             'sent_at' => $this->sent_at,
             'closed_at' => $this->closed_at,
+            'has_been_seen' => (bool) $this->has_been_seen,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
             'sender' => $this->whenLoaded('sender'),

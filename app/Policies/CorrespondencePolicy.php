@@ -45,6 +45,18 @@ class CorrespondencePolicy
         return $senderId === $userId;
     }
 
+    public function delete(User $user, Correspondence $correspondence): bool
+    {
+        $userId = (int) $user->id;
+        $senderId = (int) $correspondence->sender_id;
+
+        if ($senderId !== $userId && !$user->can('manage-correspondences')) {
+            return false;
+        }
+
+        return !$correspondence->has_been_seen;
+    }
+
     public function createChildAssignment(User $user, Correspondence $correspondence): bool
     {
         return $correspondence->assignments()->where('assigned_to_id', $user->id)->exists();

@@ -14,6 +14,7 @@ use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class CorrespondenceService
@@ -44,6 +45,18 @@ class CorrespondenceService
         });
     }
 
+    /**
+     * ایجاد نامه و ارسال مستقیم آن در یک تراکنش واحد
+     */
+    public function createAndSend(User $sender, array $data): Correspondence
+    {
+        return DB::transaction(function () use ($sender, $data) {
+            $correspondence = $this->createDraft($sender, $data);
+
+            return $this->send($correspondence, $sender);
+        });
+    }
+
     public function send(Correspondence $correspondence, User $actor): Correspondence
     {
         $actorId = (int) $actor->id;
@@ -70,7 +83,6 @@ class CorrespondenceService
                 'reference_number' => $reference,
                 'status' => CorrespondenceStatus::SENT,
                 'sent_at' => $now,
-                'thread_root_id' => $correspondence->thread_root_id ?? $correspondence->id,
             ]);
 
             foreach ($toRecipients as $recipient) {
@@ -95,6 +107,54 @@ class CorrespondenceService
             ]);
 
             return $correspondence->fresh()->load(['recipients', 'assignments', 'sender']);
+        });
+    }
+
+    /**
+     * حذف نامه‌ای که هنوز توسط هیچ گیرنده یا مسئول ارجاعی مشاهده نشده است
+     */
+    public function deleteIfUnseen(Correspondence $correspondence, User $actor): void
+    {
+        $actorId = (int) $actor->id;
+        $senderId = (int) $correspondence->sender_id;
+
+        if ($senderId !== $actorId && !$actor->can('manage-correspondences')) {
+            throw new AuthorizationException('تنها فرستنده یا مدیر مکاتبات می‌تواند نامه را حذف کند.');
+        }
+
+        if ($correspondence->has_been_seen) {
+            throw ValidationException::withMessages([
+                'correspondence' => 'این نامه توسط گیرندگان مشاهده شده است و امکان حذف ندارد.',
+            ]);
+        }
+
+        $hasReplies = $correspondence->replies()->exists() || $correspondence->threadChildren()->exists();
+        if ($hasReplies) {
+            throw ValidationException::withMessages([
+                'correspondence' => 'این نامه دارای نامه‌های وابسته است و امکان حذف ندارد.',
+            ]);
+        }
+
+        DB::transaction(function () use ($correspondence) {
+            $attachments = $correspondence->attachments()->get(['id', 'disk', 'storage_path']);
+
+            $correspondence->events()->delete();
+
+            $assignmentIds = $correspondence->assignments()->pluck('id');
+            if ($assignmentIds->isNotEmpty()) {
+                CorrespondenceAssignment::whereIn('id', $assignmentIds)->update(['parent_assignment_id' => null]);
+                CorrespondenceAssignment::whereIn('id', $assignmentIds)->delete();
+            }
+
+            foreach ($attachments as $attachment) {
+                if ($attachment->storage_path) {
+                    Storage::disk($attachment->disk ?: 'public')->delete($attachment->storage_path);
+                }
+            }
+            $correspondence->attachments()->delete();
+            $correspondence->recipients()->delete();
+
+            $correspondence->delete();
         });
     }
 

@@ -25,6 +25,9 @@ class StoreCorrespondenceRequest extends FormRequest
             'thread_root_id' => ['nullable', 'integer', 'exists:correspondences,id'],
             'reply_to_id' => ['nullable', 'integer', 'exists:correspondences,id'],
 
+            // ارسال مستقیم پس از ایجاد (بدون نگه‌داشتن پیش‌نویس)
+            'send' => ['nullable', 'boolean'],
+
             // ساختار جدید: هر گیرنده با مهلت اختیاری مستقل
             'recipients' => ['nullable', 'array'],
             'recipients.*.user_id' => ['required', 'integer', 'exists:users,id'],
